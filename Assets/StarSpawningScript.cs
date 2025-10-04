@@ -46,8 +46,8 @@ public class StarSpawningScript : MonoBehaviour
         for (int i = 0; i < numberOfStars; i++)
         {
             // Generate random position within the specified ranges
-            float randomX = Random.Range(minX, maxX);
-            float randomY = Random.Range(minY, maxY);
+            float randomX = UnityEngine.Random.Range(minX, maxX);
+            float randomY = UnityEngine.Random.Range(minY, maxY);
             Vector3 spawnPosition = new Vector3(randomX, randomY, zPosition);
             
             // Spawn the star
@@ -57,7 +57,14 @@ public class StarSpawningScript : MonoBehaviour
             System.Type twinkleType = System.Type.GetType("StarTwinkle");
             if (twinkleType != null)
             {
-                newStar.AddComponent(twinkleType);
+                var twinkleComponent = newStar.AddComponent(twinkleType);
+                
+                // Set spawn ranges for respawning using reflection
+                var setRangesMethod = twinkleType.GetMethod("SetSpawnRanges");
+                if (setRangesMethod != null)
+                {
+                    setRangesMethod.Invoke(twinkleComponent, new object[] { minX, maxX, minY, maxY, zPosition });
+                }
             }
         }
     }
