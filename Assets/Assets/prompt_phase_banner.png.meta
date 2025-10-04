@@ -64,7 +64,7 @@ TextureImporter:
   nPOTScale: 0
   lightmap: 0
   compressionQuality: 50
-  spriteMode: 2
+  spriteMode: 1
   spriteExtrude: 1
   spriteMeshType: 1
   alignment: 0
@@ -288,7 +288,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 
+    spriteID: 5e97eb03825dee720800000000000000
     internalID: 0
     vertices: []
     indices: 
@@ -297,7 +297,14 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      prompt_phase_banner_0: -8212979759760699983
+      prompt_phase_banner_1: 2292600322262520616
+      prompt_phase_banner_2: 4509059879881395470
+      prompt_phase_banner_3: 7231677332915524998
+      prompt_phase_banner_4: 8333203295966762755
+      prompt_phase_banner_5: -3485308633040720280
+      prompt_phase_banner_6: -8524402883819690621
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
