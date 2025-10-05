@@ -498,7 +498,7 @@ public class GameManager : MonoBehaviour
                     // Sync player data if available
                     if (gameStateData.players != null)
                     {
-                        SyncPlayerDataFromServer(gameStateData.players);
+                        SyncAllPlayerData(gameStateData.players);
                     }
                 }
                 ShowPromptWaitingUI();
@@ -519,7 +519,7 @@ public class GameManager : MonoBehaviour
                     // Sync player data if available
                     if (triviaData.players != null)
                     {
-                        SyncPlayerDataFromServer(triviaData.players);
+                        SyncAllPlayerData(triviaData.players);
                     }
                     
                     ShowTriviaUI();
@@ -530,17 +530,18 @@ public class GameManager : MonoBehaviour
                 }
                 break;
             case ServerGameState.REWARD:
-                Debug.Log("Showing reward UI and processing damage");
+                Debug.Log("Processing REWARD state.");
                 if (data is RewardData rewardData)
                 {
                     currentRewardData = rewardData;
                     
-                    // Sync player data if available
-                    if (rewardData.players != null)
+                    // ✅ THE FIX: Immediately sync player health with the authoritative data from the server.
+                    // The server has already calculated the damage. We just need to display it.
+                    if (rewardData.players != null) 
                     {
-                        SyncPlayerDataFromServer(rewardData.players);
+                        SyncAllPlayerData(rewardData.players);
                     }
-                    
+
                     ShowRewardUI();
                 }
                 else
@@ -557,7 +558,7 @@ public class GameManager : MonoBehaviour
                     // Sync player data if available
                     if (endGameData.players != null)
                     {
-                        SyncPlayerDataFromServer(endGameData.players);
+                        SyncAllPlayerData(endGameData.players);
                     }
                     
                     ShowEndGameUI();
@@ -1387,8 +1388,8 @@ public class GameManager : MonoBehaviour
         
         if (currentRewardData != null)
         {
-            // Update player health based on results
-            UpdatePlayerHealthFromRewards();
+            // ✅ REMOVED: UpdatePlayerHealthFromRewards() - health is now synced in UpdateServerGameState
+            // The server has already sent us the authoritative player health data
             
             // Show damage animations for players who got it wrong
             StartDamageAnimations();
@@ -1422,6 +1423,65 @@ public class GameManager : MonoBehaviour
     
     // --- Player Health and Damage Management ---
     
+    // ✅ NEW: More robust function to sync all player data, including health.
+    // This method trusts the server's authoritative state completely.
+    public void SyncAllPlayerData(PlayerData[] serverPlayers)
+    {
+        if (serverPlayers == null) 
+        {
+            Debug.LogWarning("[SyncAllPlayerData] Server players array is null");
+            return;
+        }
+
+        Debug.Log($"[SyncAllPlayerData] Syncing data for {serverPlayers.Length} players from server");
+        
+        foreach (var serverPlayer in serverPlayers)
+        {
+            // Find the corresponding local player data
+            PlayerData localPlayer = playersData.Find(p => p.playerName == serverPlayer.playerName);
+            if (localPlayer != null)
+            {
+                // Log health changes for debugging
+                int oldHealth = localPlayer.health;
+                bool oldSubmitted = localPlayer.submitted;
+                
+                // Update all fields from the server's authoritative state
+                localPlayer.health = serverPlayer.health;
+                localPlayer.submitted = serverPlayer.submitted;
+                localPlayer.isHost = serverPlayer.isHost;
+                
+                // Log significant changes
+                if (oldHealth != serverPlayer.health)
+                {
+                    Debug.Log($"[SyncAllPlayerData] {serverPlayer.playerName}: Health {oldHealth} -> {serverPlayer.health}");
+                }
+                if (oldSubmitted != serverPlayer.submitted)
+                {
+                    Debug.Log($"[SyncAllPlayerData] {serverPlayer.playerName}: Submitted {oldSubmitted} -> {serverPlayer.submitted}");
+                }
+                
+                // Update the dog's player data reference to trigger health display update
+                GameObject playerDog = GetDogForPlayer(serverPlayer.playerName);
+                if (playerDog != null)
+                {
+                    DogController dogController = playerDog.GetComponent<DogController>();
+                    if (dogController != null)
+                    {
+                        dogController.SetPlayerData(localPlayer);
+                    }
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"[SyncAllPlayerData] Player not found locally: {serverPlayer.playerName}");
+                // Optionally, you could add the player here if they don't exist locally
+            }
+        }
+        
+        Debug.Log("[SyncAllPlayerData] Player data sync completed");
+    }
+    
+    // Original sync method - kept for backward compatibility with other states
     private void SyncPlayerDataFromServer(PlayerData[] serverPlayers)
     {
         if (serverPlayers == null) return;
@@ -1460,20 +1520,23 @@ public class GameManager : MonoBehaviour
         }
     }
     
-    private void UpdatePlayerHealthFromRewards()
-    {
-        if (currentRewardData?.players == null) return;
-        
-        // Use the general sync method
-        SyncPlayerDataFromServer(currentRewardData.players);
-    }
+    // ✅ REMOVED: UpdatePlayerHealthFromRewards() method
+    // Health syncing is now handled by SyncAllPlayerData() called from UpdateServerGameState()
     
     private void StartDamageAnimations()
     {
-        if (currentRewardData?.results == null) return;
+        if (currentRewardData?.results == null) 
+        {
+            Debug.LogWarning("[StartDamageAnimations] No results data available");
+            return;
+        }
+
+        Debug.Log($"[StartDamageAnimations] Processing {currentRewardData.results.Length} player results");
         
         foreach (var result in currentRewardData.results)
         {
+            Debug.Log($"[StartDamageAnimations] Player {result.playerId}: isCorrect={result.isCorrect}");
+            
             if (!result.isCorrect)
             {
                 // Find the dog for this player and trigger damage animation
@@ -1483,8 +1546,17 @@ public class GameManager : MonoBehaviour
                     DogController dogController = playerDog.GetComponent<DogController>();
                     if (dogController != null)
                     {
+                        Debug.Log($"[StartDamageAnimations] Triggering damage animation for {result.playerId}");
                         dogController.TriggerDamageEffect();
                     }
+                    else
+                    {
+                        Debug.LogWarning($"[StartDamageAnimations] No DogController found for {result.playerId}");
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning($"[StartDamageAnimations] No dog found for player {result.playerId}");
                 }
             }
         }
