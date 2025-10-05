@@ -22,6 +22,7 @@ public class TriviaData
     public string question;
     public string[] options = new string[4]; // A, B, C, D
     public int correctAnswerIndex;
+    public PlayerData[] players; // Player data that comes with trivia state
 }
 
 [System.Serializable]
@@ -44,6 +45,7 @@ public class PlayerResult
 public class EndGameData
 {
     public string[] winners;
+    public PlayerData[] players; // Player data that comes with endgame state
 }
 
 [System.Serializable]
@@ -250,23 +252,31 @@ public class GameManager : MonoBehaviour
         
         var serverPlayers = NetworkScript.Instance.playersInLobby;
         
-        // Clear existing player data and dogs
-        foreach (var dog in activeDogs.ToArray())
+        // Instead of clearing all data, update existing players and add new ones
+        List<string> currentPlayerNames = playersData.Select(p => p.playerName).ToList();
+        
+        // Remove players who are no longer in the lobby
+        for (int i = playersData.Count - 1; i >= 0; i--)
         {
-            if (dog != null)
+            if (!serverPlayers.Contains(playersData[i].playerName))
             {
-                Destroy(dog);
+                // Remove player data
+                RemoveDogForPlayer(playersData[i].playerName);
+                playersData.RemoveAt(i);
+                Debug.Log($"[GameManager] Player left: {playersData[i].playerName}");
             }
         }
-        activeDogs.Clear();
-        playersData.Clear();
         
-        // Add all players from NetworkScript and spawn dogs
+        // Add new players (preserving health of existing players)
         foreach (string playerName in serverPlayers)
         {
-            PlayerData newPlayer = new PlayerData(playerName, false); // No host players in game
-            playersData.Add(newPlayer);
-            SpawnDogForPlayer(newPlayer);
+            if (!currentPlayerNames.Contains(playerName))
+            {
+                PlayerData newPlayer = new PlayerData(playerName, false); // No host players in game
+                playersData.Add(newPlayer);
+                SpawnDogForPlayer(newPlayer);
+                Debug.Log($"[GameManager] Player joined: {playerName}");
+            }
         }
         
         Debug.Log($"[GameManager] Player list updated: {serverPlayers.Count} players, {activeDogs.Count} dogs spawned");
@@ -455,6 +465,9 @@ public class GameManager : MonoBehaviour
         currentServerState = newState;
         Debug.Log($"Server game state changed to: {currentServerState}");
         
+        // Update UI buttons when server state changes
+        UpdatePhaseUI();
+        
         switch (newState)
         {
             case ServerGameState.PROMPT:
@@ -471,6 +484,13 @@ public class GameManager : MonoBehaviour
                 {
                     currentTriviaData = triviaData;
                     Debug.Log($"Trivia data: Question='{triviaData.question}', Options count={triviaData.options?.Length ?? 0}");
+                    
+                    // Sync player data if available
+                    if (triviaData.players != null)
+                    {
+                        SyncPlayerDataFromServer(triviaData.players);
+                    }
+                    
                     ShowTriviaUI();
                 }
                 else
@@ -483,6 +503,13 @@ public class GameManager : MonoBehaviour
                 if (data is RewardData rewardData)
                 {
                     currentRewardData = rewardData;
+                    
+                    // Sync player data if available
+                    if (rewardData.players != null)
+                    {
+                        SyncPlayerDataFromServer(rewardData.players);
+                    }
+                    
                     ShowRewardUI();
                 }
                 else
@@ -495,6 +522,13 @@ public class GameManager : MonoBehaviour
                 if (data is EndGameData endGameData)
                 {
                     currentEndGameData = endGameData;
+                    
+                    // Sync player data if available
+                    if (endGameData.players != null)
+                    {
+                        SyncPlayerDataFromServer(endGameData.players);
+                    }
+                    
                     ShowEndGameUI();
                 }
                 else
@@ -1357,18 +1391,50 @@ public class GameManager : MonoBehaviour
     
     // --- Player Health and Damage Management ---
     
-    private void UpdatePlayerHealthFromRewards()
+    private void SyncPlayerDataFromServer(PlayerData[] serverPlayers)
     {
-        if (currentRewardData?.results == null) return;
+        if (serverPlayers == null) return;
         
-        foreach (var result in currentRewardData.results)
+        foreach (var serverPlayer in serverPlayers)
         {
-            if (!result.isCorrect)
+            PlayerData localPlayer = playersData.Find(p => p.playerName == serverPlayer.playerName);
+            if (localPlayer != null)
             {
-                // Player got it wrong, damage them
-                DamagePlayer(result.playerId);
+                // Update all player data to match server
+                int oldHealth = localPlayer.health;
+                localPlayer.health = serverPlayer.health;
+                localPlayer.submitted = serverPlayer.submitted;
+                localPlayer.isHost = serverPlayer.isHost;
+                
+                if (oldHealth != serverPlayer.health)
+                {
+                    Debug.Log($"[Health Sync] {serverPlayer.playerName}: {oldHealth} -> {serverPlayer.health}");
+                }
+                
+                // Update the dog's player data reference to trigger health display update
+                GameObject playerDog = GetDogForPlayer(serverPlayer.playerName);
+                if (playerDog != null)
+                {
+                    DogController dogController = playerDog.GetComponent<DogController>();
+                    if (dogController != null)
+                    {
+                        dogController.SetPlayerData(localPlayer);
+                    }
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"[Health Sync] Player not found locally: {serverPlayer.playerName}");
             }
         }
+    }
+    
+    private void UpdatePlayerHealthFromRewards()
+    {
+        if (currentRewardData?.players == null) return;
+        
+        // Use the general sync method
+        SyncPlayerDataFromServer(currentRewardData.players);
     }
     
     private void StartDamageAnimations()
@@ -1399,6 +1465,46 @@ public class GameManager : MonoBehaviour
         if (player != null)
         {
             player.submitted = submitted;
+        }
+    }
+    
+    // Comprehensive player data update method
+    public void UpdatePlayerData(string playerName, int? health = null, bool? submitted = null, bool? isHost = null)
+    {
+        PlayerData player = playersData.Find(p => p.playerName == playerName);
+        if (player != null)
+        {
+            int oldHealth = player.health;
+            
+            // Update fields if provided
+            if (health.HasValue) player.health = health.Value;
+            if (submitted.HasValue) player.submitted = submitted.Value;
+            if (isHost.HasValue) player.isHost = isHost.Value;
+            
+            // Log health changes
+            if (health.HasValue && oldHealth != health.Value)
+            {
+                Debug.Log($"[Player Update] {playerName}: Health {oldHealth} -> {health.Value}");
+            }
+            
+            // Update the dog's health display if health changed
+            if (health.HasValue && oldHealth != health.Value)
+            {
+                GameObject playerDog = GetDogForPlayer(playerName);
+                if (playerDog != null)
+                {
+                    DogController dogController = playerDog.GetComponent<DogController>();
+                    if (dogController != null)
+                    {
+                        dogController.SetPlayerData(player);
+                        Debug.Log($"[Player Update] Updated dog display for {playerName}");
+                    }
+                }
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"[Player Update] Player not found: {playerName}");
         }
     }
 
@@ -1453,12 +1559,16 @@ public class GameManager : MonoBehaviour
             phaseDisplay.text = $"Phase: {currentPhase}";
         }
         
-        // Update button visibility based on phase and host status
+        // Update button visibility based on phase, server state, and host status
         bool isHost = NetworkScript.Instance != null && NetworkScript.Instance.isHost;
         
         if (startGameButton != null)
         {
-            startGameButton.gameObject.SetActive(currentPhase == GamePhase.Joining && isHost);
+            // Hide start button if game has started (server state is no longer JOINING) or if not in Joining phase
+            bool shouldShowStartButton = currentPhase == GamePhase.Joining && 
+                                       currentServerState == ServerGameState.JOINING && 
+                                       isHost;
+            startGameButton.gameObject.SetActive(shouldShowStartButton);
         }
         
         if (nextPhaseButton != null)
@@ -1771,6 +1881,28 @@ public class GameManager : MonoBehaviour
     {
         Debug.Log("Testing server state transition manually");
         UpdateServerGameState(ServerGameState.TRIVIA);
+    }
+    
+    [ContextMenu("Check Player Health Status")]
+    public void CheckPlayerHealthStatus()
+    {
+        Debug.Log("=== PLAYER HEALTH STATUS ===");
+        foreach (var player in playersData)
+        {
+            Debug.Log($"{player.playerName}: Health = {player.health}, Submitted = {player.submitted}");
+            
+            // Also check the dog's health display
+            GameObject playerDog = GetDogForPlayer(player.playerName);
+            if (playerDog != null)
+            {
+                DogController dogController = playerDog.GetComponent<DogController>();
+                if (dogController != null && dogController.playerData != null)
+                {
+                    Debug.Log($"  Dog health display: {dogController.playerData.health}");
+                }
+            }
+        }
+        Debug.Log("=== END HEALTH STATUS ===");
     }
     
     [ContextMenu("Check Phase Transition Components")]
