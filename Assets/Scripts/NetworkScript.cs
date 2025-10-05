@@ -154,6 +154,12 @@ public class NetworkScript : MonoBehaviour
             }
         });
 
+        socket.On("gameStateChange", response =>
+        {
+            var data = response.GetValue();
+            Debug.Log($"GameState changed: {data.ToString()}");
+        });
+
         // --- Tell the socket to start connecting ---
         Debug.Log("Connecting to server...");
         UpdateConnectionStatus("Connecting...");
@@ -248,7 +254,21 @@ public class NetworkScript : MonoBehaviour
     {
         TransitionToGameScene();
     }
-    
+
+    // --- Game Methods ---
+    public void StartGame()
+    {
+        if (socket != null && socket.Connected && isHost && !string.IsNullOrEmpty(currentLobbyCode))
+        {
+            Debug.Log("[NetworkScript] Emitting startGame event to server...");
+            socket.Emit("startGame", new { lobbyCode  = currentLobbyCode });
+        }
+        else
+        {
+            Debug.LogWarning("[NetworkScript] Cannot start game: Not connected, not the host, or no lobby code.");
+        }
+    }
+
     // --- UI Helper Methods ---
     
     private void UpdateUI()
