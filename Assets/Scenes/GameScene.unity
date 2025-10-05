@@ -1923,7 +1923,7 @@ MonoBehaviour:
   lobbyCodeDisplay: {fileID: 188392897}
   phaseDisplay: {fileID: 148791160}
   roundTimerDisplay: {fileID: 62706478}
-  timerIcon: {fileID: 0}
+  timerIcon: {fileID: 1221420164}
   hostScript: {fileID: 788413779}
   promptWaitingPanel: {fileID: 1221420161}
   questionText: {fileID: 1153312500}

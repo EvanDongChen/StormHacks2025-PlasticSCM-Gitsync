@@ -263,6 +263,13 @@ public class GameManager : MonoBehaviour
             SetupAllTextComponents();
         }
         
+        // Ensure timer icon is enabled on start
+        if (timerIcon != null)
+        {
+            timerIcon.gameObject.SetActive(true);
+            Debug.Log("Timer icon enabled on start");
+        }
+        
         // Get the NetworkScript instance that persisted from the main menu
         if (NetworkScript.Instance != null)
         {
