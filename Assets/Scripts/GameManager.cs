@@ -99,6 +99,7 @@ public class GameManager : MonoBehaviour
     public TextMeshProUGUI lobbyCodeDisplay;
     public TextMeshProUGUI phaseDisplay;
     public TextMeshProUGUI roundTimerDisplay;      // Timer display for current round
+    public Image timerIcon;                        // Timer icon to hide during endgame
     
     [Header("Host")]
     public HostScript hostScript;                   // Reference to the host script for state changes
@@ -1459,6 +1460,8 @@ public class GameManager : MonoBehaviour
             phaseDisplay.gameObject.SetActive(false);
         if (roundTimerDisplay != null)
             roundTimerDisplay.gameObject.SetActive(false);
+        if (timerIcon != null)
+            timerIcon.gameObject.SetActive(false);
         if (lobbyCodeDisplay != null)
             lobbyCodeDisplay.gameObject.SetActive(false);
         
@@ -1704,6 +1707,8 @@ public class GameManager : MonoBehaviour
             phaseDisplay.gameObject.SetActive(true);
         if (roundTimerDisplay != null)
             roundTimerDisplay.gameObject.SetActive(true);
+        if (timerIcon != null)
+            timerIcon.gameObject.SetActive(true);
         if (lobbyCodeDisplay != null)
             lobbyCodeDisplay.gameObject.SetActive(true);
     }

@@ -260,7 +260,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 8.193787, y: 1.5825958}
+  m_AnchoredPosition: {x: 8.193787, y: 1.5825806}
   m_SizeDelta: {x: 273.36218, y: 169.05573}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &41101324
@@ -1923,8 +1923,9 @@ MonoBehaviour:
   lobbyCodeDisplay: {fileID: 188392897}
   phaseDisplay: {fileID: 148791160}
   roundTimerDisplay: {fileID: 62706478}
+  timerIcon: {fileID: 0}
   hostScript: {fileID: 788413779}
-  promptWaitingPanel: {fileID: 0}
+  promptWaitingPanel: {fileID: 1221420161}
   questionText: {fileID: 1153312500}
   answerAText: {fileID: 1417223545}
   answerBText: {fileID: 442233142}
