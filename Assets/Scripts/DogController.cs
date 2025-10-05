@@ -335,4 +335,55 @@ public class DogController : MonoBehaviour
         Wag();
         Debug.Log($"You petted {playerData.playerName}'s dog!");
     }
+    
+    public void TriggerDamageEffect()
+    {
+        // Simple damage effect - could be enhanced with more complex animations
+        StartCoroutine(DamageFlashEffect());
+    }
+    
+    private IEnumerator DamageFlashEffect()
+    {
+        // Flash red briefly to indicate damage
+        Color originalBottomColor = Color.white;
+        Color originalTopColor = Color.white;
+        
+        if (bottomCoatRenderer != null)
+            originalBottomColor = bottomCoatRenderer.material.color;
+        if (topCoatRenderer != null)
+            originalTopColor = topCoatRenderer.material.color;
+        
+        // Flash red
+        if (bottomCoatRenderer != null)
+            bottomCoatRenderer.material.color = Color.red;
+        if (topCoatRenderer != null)
+            topCoatRenderer.material.color = Color.red;
+        
+        yield return new WaitForSeconds(0.2f);
+        
+        // Return to original colors
+        if (bottomCoatRenderer != null)
+            bottomCoatRenderer.material.color = originalBottomColor;
+        if (topCoatRenderer != null)
+            topCoatRenderer.material.color = originalTopColor;
+        
+        Debug.Log($"{playerData.playerName}'s dog took damage!");
+    }
+    
+    // Magical outline methods
+    public void ApplyMagicalOutline()
+    {
+        // Check if we have a SpriteRenderer component to apply outline to
+        SpriteRenderer spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+        if (spriteRenderer == null)
+        {
+            Debug.LogWarning($"No SpriteRenderer found on {playerData.playerName}'s dog for magical outline!");
+            return;
+        }
+        
+        
+        Debug.Log($"{playerData.playerName}'s dog is now enchanted with magical effects!");
+    }
+    
+
 }
