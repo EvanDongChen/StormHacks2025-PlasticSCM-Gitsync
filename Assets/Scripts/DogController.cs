@@ -43,6 +43,9 @@ public class DogController : MonoBehaviour
         new Color(0.95f, 0.9f, 0.85f)   // White
     };
     
+    // Store the original dog color for restoration
+    private Color originalDogColor;
+    
     void Start()
     {
         // Find child GameObjects if not assigned
@@ -207,6 +210,21 @@ public class DogController : MonoBehaviour
                 heartObjects[i].SetActive(i < activeHearts);
             }
         }
+        
+        // Change dog color to white when health is 0
+        if (bottomCoatRenderer != null)
+        {
+            if (playerData.health <= 0)
+            {
+                // Make the dog white when health is 0
+                bottomCoatRenderer.material.color = Color.white;
+            }
+            else
+            {
+                // Restore original color when health is above 0
+                bottomCoatRenderer.material.color = originalDogColor;
+            }
+        }
     }
     
     void SetDogColor()
@@ -238,14 +256,18 @@ public class DogController : MonoBehaviour
         {
             // Use player name hash to get consistent color - only apply to BottomCoat
             int colorIndex = Mathf.Abs(playerData.playerName.GetHashCode()) % playerColors.Length;
-            bottomCoatRenderer.material.color = playerColors[colorIndex];
+            Color baseColor = playerColors[colorIndex];
             
             // Make host dogs slightly bigger and brighter
             if (playerData.isHost)
             {
                 transform.localScale = Vector3.one * 1.2f;
-                bottomCoatRenderer.material.color = Color.Lerp(bottomCoatRenderer.material.color, Color.white, 0.3f);
+                baseColor = Color.Lerp(baseColor, Color.white, 0.3f);
             }
+            
+            // Store the original color for restoration when health is restored
+            originalDogColor = baseColor;
+            bottomCoatRenderer.material.color = baseColor;
         }
     }
     
