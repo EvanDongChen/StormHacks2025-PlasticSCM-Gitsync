@@ -220,6 +220,7 @@ public class GameManager : MonoBehaviour
         // Initialize phase (no transition on startup)
         currentPhase = GamePhase.Joining;
         UpdatePhaseUI();
+        UpdateTimerVisibility(); // Initialize timer visibility based on current state
         Debug.Log($"Initial phase set to: {currentPhase}");
         
         // Initialize all game state panels to hidden
@@ -519,6 +520,9 @@ public class GameManager : MonoBehaviour
         
         // Update UI buttons when server state changes
         UpdatePhaseUI();
+        
+        // Update timer visibility based on new state
+        UpdateTimerVisibility();
         
         // Handle timer data from server
         HandleTimerFromServerData(data);
@@ -1465,10 +1469,6 @@ public class GameManager : MonoBehaviour
         // Hide the phase display and other UI elements during endgame
         if (phaseDisplay != null)
             phaseDisplay.gameObject.SetActive(false);
-        if (roundTimerDisplay != null)
-            roundTimerDisplay.gameObject.SetActive(false);
-        if (timerIcon != null)
-            timerIcon.gameObject.SetActive(false);
         if (lobbyCodeDisplay != null)
             lobbyCodeDisplay.gameObject.SetActive(false);
         
@@ -1741,12 +1741,28 @@ public class GameManager : MonoBehaviour
         // Show normal UI elements again
         if (phaseDisplay != null)
             phaseDisplay.gameObject.SetActive(true);
-        if (roundTimerDisplay != null)
-            roundTimerDisplay.gameObject.SetActive(true);
-        if (timerIcon != null)
-            timerIcon.gameObject.SetActive(true);
         if (lobbyCodeDisplay != null)
             lobbyCodeDisplay.gameObject.SetActive(true);
+    }
+    
+    // --- Timer Visibility Management ---
+    
+    private void UpdateTimerVisibility()
+    {
+        // Show timer icon and display for all phases except ENDGAME
+        bool shouldShowTimer = currentServerState != ServerGameState.ENDGAME;
+        
+        if (timerIcon != null)
+        {
+            timerIcon.gameObject.SetActive(shouldShowTimer);
+        }
+        
+        if (roundTimerDisplay != null)
+        {
+            roundTimerDisplay.gameObject.SetActive(shouldShowTimer);
+        }
+        
+        Debug.Log($"[Timer] Timer visibility updated - showing: {shouldShowTimer} for state: {currentServerState}");
     }
     
     // --- Player Health and Damage Management ---
