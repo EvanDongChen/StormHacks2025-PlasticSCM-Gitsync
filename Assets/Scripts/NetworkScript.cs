@@ -20,6 +20,7 @@ public class NetworkScript : MonoBehaviour
     public Button createLobbyButton;
     public TextMeshProUGUI lobbyCodeDisplay;
     public TextMeshProUGUI connectionStatusText;
+    public LobbyScript lobbyScript; // Reference to handle fade effect
     
     [Header("Scene Management")]
     public string gameSceneName = "GameScene";
@@ -227,8 +228,18 @@ public class NetworkScript : MonoBehaviour
         // Make sure the ServerScript persists across scenes
         DontDestroyOnLoad(gameObject);
         
-        // Load the game scene
-        SceneManager.LoadScene(gameSceneName);
+        // Use fade effect if LobbyScript is available
+        if (lobbyScript != null)
+        {
+            Debug.Log("Using fade transition from LobbyScript");
+            lobbyScript.StartGameWithFade();
+        }
+        else
+        {
+            // Fallback to direct scene loading if no LobbyScript
+            Debug.LogWarning("LobbyScript not assigned, loading scene directly without fade");
+            SceneManager.LoadScene(gameSceneName);
+        }
     }
     
     // Public method to manually transition (for testing)
