@@ -859,11 +859,26 @@ public class NetworkScript : MonoBehaviour
                 if (timerStart > 7 && timerEnd > timerStart)
                 {
                     string timerStr = jsonResponse.Substring(timerStart, timerEnd - timerStart).Trim();
+                    Debug.Log($"[Timer Parsing] Raw timer string: '{timerStr}' from JSON: {jsonResponse}");
+                    
                     if (float.TryParse(timerStr, out float timer))
                     {
+                        Debug.Log($"[Timer Parsing] Successfully parsed timer: {timer}s");
                         return timer;
                     }
+                    else
+                    {
+                        Debug.LogError($"[Timer Parsing] Failed to parse timer string: '{timerStr}'");
+                    }
                 }
+                else
+                {
+                    Debug.LogError($"[Timer Parsing] Invalid timer indices - start: {timerStart}, end: {timerEnd}");
+                }
+            }
+            else
+            {
+                Debug.Log("[Timer Parsing] No timer field found in JSON response");
             }
         }
         catch (System.Exception e)

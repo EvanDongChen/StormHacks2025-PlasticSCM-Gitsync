@@ -115,6 +115,18 @@ public class GameManager : MonoBehaviour
     public TextMeshProUGUI loadingText;
     public TextMeshProUGUI endGameText;
     
+    [Header("End Game UI")]
+    public SpriteRenderer endGameDarkOverlay;      // Dark overlay GameObject with SpriteRenderer that covers everything except dogs
+                                                  // Use a large black sprite and position it to cover the screen
+    public TextMeshProUGUI winnerAnnouncementText; // "WE HAVE A WINNER" text (should be disabled by default)
+    public Button mainMenuButton;                  // Button to return to main menu (should be disabled by default)
+    public CanvasGroup endGameCanvasGroup;         // Canvas group for fading endgame elements
+    public float endGameFadeDuration = 2.0f;       // How long the endgame fade takes
+    public Color endGameOverlayColor = new Color(0, 0, 0, 0.9f); // Very dark overlay color
+    public Vector3 centerScreenPosition = new Vector3(-1, -1, 0); // Position where winning dog should move to
+    public float dogMoveDuration = 1.5f;           // How long it takes for the dog to move to center
+    public float dogMoveDelay = 1.0f;              // Delay before moving dog to center
+    
     [Header("Trivia UI Images")]
     public Image questionImage;           // Background image for question
     public Image answerAImage;            // Background image for answer A
@@ -189,6 +201,11 @@ public class GameManager : MonoBehaviour
             nextPhaseButton.onClick.AddListener(NextPhase);
         }
         
+        if (mainMenuButton != null)
+        {
+            mainMenuButton.onClick.AddListener(ReturnToMainMenu);
+        }
+        
         // Initialize phase (no transition on startup)
         currentPhase = GamePhase.Joining;
         UpdatePhaseUI();
@@ -196,6 +213,7 @@ public class GameManager : MonoBehaviour
         
         // Initialize all game state panels to hidden
         HideAllGameStatePanels();
+        ResetEndGameUI(); // Ensure endgame UI starts in clean state
         Debug.Log("All game state panels and trivia elements hidden on start");
         
         // Ensure all CanvasGroups start with alpha 0 (respecting editor settings)
@@ -568,9 +586,20 @@ public class GameManager : MonoBehaviour
                     Debug.LogError("ENDGAME state received but data is not EndGameData type!");
                 }
                 break;
+            case ServerGameState.JOINING:
+                Debug.Log("Returning to lobby - resetting all UI");
+                HideAllGameStatePanels();
+                ResetEndGameUI(); // Reset dramatic endgame elements
+                // Reset phase display to default
+                if (phaseDisplay != null)
+                {
+                    phaseDisplay.text = $"Phase: {currentPhase}";
+                }
+                break;
             default:
                 Debug.Log("Hiding all game state panels - returning to default state");
                 HideAllGameStatePanels();
+                ResetEndGameUI(); // Reset dramatic endgame elements in case of unknown state
                 // Reset phase display to default
                 if (phaseDisplay != null)
                 {
@@ -1398,27 +1427,263 @@ public class GameManager : MonoBehaviour
     
     private void ShowEndGameUI()
     {
-        // Immediately hide all trivia elements
-        HideTriviaElementsImmediate();
-        HideAllGameStatePanels(); // This hides prompt panel and trivia elements
+        Debug.Log("[EndGame] Starting dramatic endgame sequence");
         
-        // Update phase display
+        // Immediately hide all trivia elements and UI panels
+        HideTriviaElementsImmediate();
+        HideAllGameStatePanels();
+        
+        // Hide the phase display and other UI elements during endgame
         if (phaseDisplay != null)
+            phaseDisplay.gameObject.SetActive(false);
+        if (roundTimerDisplay != null)
+            roundTimerDisplay.gameObject.SetActive(false);
+        if (lobbyCodeDisplay != null)
+            lobbyCodeDisplay.gameObject.SetActive(false);
+        
+        // Start the dramatic endgame sequence
+        StartCoroutine(ShowDramaticEndGame());
+        
+        Debug.Log("[EndGame] Dramatic endgame sequence initiated");
+    }
+    
+    private IEnumerator ShowDramaticEndGame()
+    {
+        // Step 1: Ensure the overlay and winner text are ready but hidden
+        if (endGameDarkOverlay != null)
         {
-            if (currentEndGameData?.winners != null && currentEndGameData.winners.Length > 0)
+            endGameDarkOverlay.gameObject.SetActive(true);
+            Color overlayColor = endGameOverlayColor;
+            overlayColor.a = 0f;
+            endGameDarkOverlay.color = overlayColor;
+        }
+        
+        if (winnerAnnouncementText != null)
+        {
+            winnerAnnouncementText.gameObject.SetActive(true);
+            winnerAnnouncementText.color = new Color(winnerAnnouncementText.color.r, 
+                                                   winnerAnnouncementText.color.g, 
+                                                   winnerAnnouncementText.color.b, 0f);
+        }
+        
+        if (endGameCanvasGroup != null)
+        {
+            endGameCanvasGroup.alpha = 0f;
+            endGameCanvasGroup.gameObject.SetActive(true);
+        }
+        
+        // Step 2: Fade in the dark overlay (everything goes dark except dogs)
+        Debug.Log("[EndGame] Fading in dark overlay");
+        yield return StartCoroutine(FadeOverlayToTarget(1f, endGameFadeDuration * 0.6f));
+        
+        // Step 3: Wait a moment for dramatic effect, then move winning dog to center
+        yield return new WaitForSeconds(dogMoveDelay);
+        
+        // Step 3.5: Move the winning dog to center of screen
+        Debug.Log("[EndGame] Moving winning dog to center");
+        StartCoroutine(MoveWinningDogToCenter());
+        
+        // Step 4: Fade in the "WE HAVE A WINNER" text
+        Debug.Log("[EndGame] Showing winner announcement");
+        yield return StartCoroutine(FadeWinnerText(1f, endGameFadeDuration * 0.4f));
+        
+        // Step 5: Update winner text based on game data
+        UpdateWinnerText();
+        
+        // Step 6: Make dogs stand out (they should already be visible due to sorting layers)
+        HighlightWinningDogs();
+        
+        // Step 7: Show main menu button after a delay
+        yield return new WaitForSeconds(1.5f);
+        ShowMainMenuButton();
+        
+        Debug.Log("[EndGame] Dramatic endgame sequence complete");
+    }
+    
+    private IEnumerator FadeOverlayToTarget(float targetAlpha, float duration)
+    {
+        if (endGameDarkOverlay == null) yield break;
+        
+        Color startColor = endGameDarkOverlay.color;
+        Color targetColor = endGameOverlayColor;
+        targetColor.a = targetAlpha;
+        
+        float elapsedTime = 0f;
+        while (elapsedTime < duration)
+        {
+            elapsedTime += Time.deltaTime;
+            float progress = elapsedTime / duration;
+            endGameDarkOverlay.color = Color.Lerp(startColor, targetColor, progress);
+            yield return null;
+        }
+        
+        endGameDarkOverlay.color = targetColor;
+    }
+    
+    private IEnumerator FadeWinnerText(float targetAlpha, float duration)
+    {
+        if (winnerAnnouncementText == null) yield break;
+        
+        Color startColor = winnerAnnouncementText.color;
+        Color targetColor = startColor;
+        targetColor.a = targetAlpha;
+        
+        float elapsedTime = 0f;
+        while (elapsedTime < duration)
+        {
+            elapsedTime += Time.deltaTime;
+            float progress = elapsedTime / duration;
+            winnerAnnouncementText.color = Color.Lerp(startColor, targetColor, progress);
+            yield return null;
+        }
+        
+        winnerAnnouncementText.color = targetColor;
+    }
+    
+    private void UpdateWinnerText()
+    {
+        if (winnerAnnouncementText == null) return;
+        
+        if (currentEndGameData?.winners != null && currentEndGameData.winners.Length > 0)
+        {
+            if (currentEndGameData.winners.Length == 1)
             {
-                string winnerText = currentEndGameData.winners.Length == 1 
-                    ? $"Winner: {currentEndGameData.winners[0]}"
-                    : $"Winners: {string.Join(", ", currentEndGameData.winners)}";
-                phaseDisplay.text = winnerText;
+                winnerAnnouncementText.text = $"WE HAVE A WINNER!\n{currentEndGameData.winners[0]}";
             }
             else
             {
-                phaseDisplay.text = "Game Over!";
+                winnerAnnouncementText.text = $"WE HAVE WINNERS!\n{string.Join(" & ", currentEndGameData.winners)}";
             }
         }
+        else
+        {
+            winnerAnnouncementText.text = "GAME OVER\nNo Winners This Round";
+        }
         
-        Debug.Log("EndGame UI shown - prompt panel hidden, trivia elements immediately hidden");
+        Debug.Log($"[EndGame] Winner text updated: {winnerAnnouncementText.text}");
+    }
+    
+    private void HighlightWinningDogs()
+    {
+        if (currentEndGameData?.winners == null) return;
+        
+        Debug.Log($"[EndGame] Highlighting {currentEndGameData.winners.Length} winning dogs");
+        
+        // Highlight winning dogs with magical outline
+        foreach (string winnerName in currentEndGameData.winners)
+        {
+            GameObject winnerDog = GetDogForPlayer(winnerName);
+            if (winnerDog != null)
+            {
+                DogController dogController = winnerDog.GetComponent<DogController>();
+                if (dogController != null)
+                {
+                    dogController.ApplyMagicalOutline(); // Highlight the winner
+                    Debug.Log($"[EndGame] Highlighted winning dog: {winnerName}");
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"[EndGame] Could not find dog for winner: {winnerName}");
+            }
+        }
+    }
+    
+    private IEnumerator MoveWinningDogToCenter()
+    {
+        if (currentEndGameData?.winners == null || currentEndGameData.winners.Length == 0)
+        {
+            Debug.LogWarning("[EndGame] No winners to move to center");
+            yield break;
+        }
+        
+        // For multiple winners, just move the first one for dramatic effect
+        string winnerName = currentEndGameData.winners[0];
+        GameObject winnerDog = GetDogForPlayer(winnerName);
+        
+        if (winnerDog == null)
+        {
+            Debug.LogWarning($"[EndGame] Could not find dog for winner: {winnerName}");
+            yield break;
+        }
+        
+        Vector3 startPosition = winnerDog.transform.position;
+        Vector3 targetPosition = centerScreenPosition;
+        
+        Debug.Log($"[EndGame] Moving {winnerName}'s dog from {startPosition} to {targetPosition}");
+        
+        float elapsedTime = 0f;
+        while (elapsedTime < dogMoveDuration)
+        {
+            elapsedTime += Time.deltaTime;
+            float progress = elapsedTime / dogMoveDuration;
+            
+            // Use smooth easing for more dramatic movement
+            float easedProgress = Mathf.SmoothStep(0f, 1f, progress);
+            
+            winnerDog.transform.position = Vector3.Lerp(startPosition, targetPosition, easedProgress);
+            yield return null;
+        }
+        
+        winnerDog.transform.position = targetPosition;
+        Debug.Log($"[EndGame] {winnerName}'s dog reached center position");
+    }
+    
+    private void ShowMainMenuButton()
+    {
+        if (mainMenuButton != null)
+        {
+            mainMenuButton.gameObject.SetActive(true);
+            Debug.Log("[EndGame] Main menu button shown");
+        }
+        else
+        {
+            Debug.LogWarning("[EndGame] Main menu button not assigned");
+        }
+    }
+    
+    public void ResetEndGameUI()
+    {
+        Debug.Log("[EndGame] Resetting endgame UI elements");
+        
+        // Hide and reset the endgame overlay
+        if (endGameDarkOverlay != null)
+        {
+            endGameDarkOverlay.gameObject.SetActive(false);
+            Color overlayColor = endGameOverlayColor;
+            overlayColor.a = 0f;
+            endGameDarkOverlay.color = overlayColor;
+        }
+        
+        // Hide and reset the winner announcement text
+        if (winnerAnnouncementText != null)
+        {
+            winnerAnnouncementText.gameObject.SetActive(false);
+            winnerAnnouncementText.color = new Color(winnerAnnouncementText.color.r, 
+                                                   winnerAnnouncementText.color.g, 
+                                                   winnerAnnouncementText.color.b, 0f);
+        }
+        
+        // Hide the main menu button
+        if (mainMenuButton != null)
+        {
+            mainMenuButton.gameObject.SetActive(false);
+        }
+        
+        // Reset endgame canvas group
+        if (endGameCanvasGroup != null)
+        {
+            endGameCanvasGroup.alpha = 0f;
+            endGameCanvasGroup.gameObject.SetActive(false);
+        }
+        
+        // Show normal UI elements again
+        if (phaseDisplay != null)
+            phaseDisplay.gameObject.SetActive(true);
+        if (roundTimerDisplay != null)
+            roundTimerDisplay.gameObject.SetActive(true);
+        if (lobbyCodeDisplay != null)
+            lobbyCodeDisplay.gameObject.SetActive(true);
     }
     
     // --- Player Health and Damage Management ---
@@ -2066,7 +2331,7 @@ public class GameManager : MonoBehaviour
         timerCoroutine = StartCoroutine(TimerCountdown());
         UpdateTimerDisplay();
         
-        Debug.Log($"Timer started: {seconds} seconds");
+        Debug.Log($"[Timer] Started: {seconds} seconds for state {currentServerState}");
     }
     
     public void StopTimer()
@@ -2111,6 +2376,8 @@ public class GameManager : MonoBehaviour
             {
                 int minutes = Mathf.FloorToInt(currentTimerSeconds / 60f);
                 int seconds = Mathf.FloorToInt(currentTimerSeconds % 60f);
+                
+                // Just show the timer without category text
                 roundTimerDisplay.text = $"{minutes:00}:{seconds:00}";
                 
                 // Change color based on remaining time
@@ -2140,26 +2407,87 @@ public class GameManager : MonoBehaviour
     {
         float timerValue = 0f;
         
-        if (data is TriviaData triviaData && triviaData.timer > 0f)
+        // Extract timer based on the current server state and data type
+        if (data is TriviaData triviaData)
         {
             timerValue = triviaData.timer;
+            Debug.Log($"[Timer] TRIVIA state - timer from server: {timerValue}s");
         }
-        else if (data is RewardData rewardData && rewardData.timer > 0f)
+        else if (data is RewardData rewardData)
         {
             timerValue = rewardData.timer;
+            Debug.Log($"[Timer] REWARD state - timer from server: {timerValue}s");
         }
-        else if (data is GameStateData gameStateData && gameStateData.timer > 0f)
+        else if (data is GameStateData gameStateData)
         {
             timerValue = gameStateData.timer;
+            Debug.Log($"[Timer] {currentServerState} state - timer from server: {timerValue}s");
         }
         
-        if (timerValue > 0f)
+        // Handle timer based on current server state
+        switch (currentServerState)
         {
-            StartTimer(timerValue);
-        }
-        else
-        {
-            StopTimer();
+            case ServerGameState.PROMPT:
+                // Backend sends 60s for prompt phase
+                if (timerValue > 0f)
+                {
+                    StartTimer(timerValue);
+                }
+                else
+                {
+                    Debug.LogWarning("[Timer] No timer provided for PROMPT state, using default 60s");
+                    StartTimer(60f); // Fallback to 60 seconds
+                }
+                break;
+                
+            case ServerGameState.GENERATING:
+                // No timer during generation phase
+                Debug.Log("[Timer] GENERATING state - stopping timer");
+                StopTimer();
+                break;
+                
+            case ServerGameState.TRIVIA:
+                // Backend currently sends PROMPT_PHASE_SECONDS (60) but should be ROUND_TIMER_SECONDS (60)
+                // For now, both are 60s so it works, but let's be explicit
+                if (timerValue > 0f)
+                {
+                    StartTimer(timerValue);
+                }
+                else
+                {
+                    Debug.LogWarning("[Timer] No timer provided for TRIVIA state, using default 60s");
+                    StartTimer(60f); // Fallback to 60 seconds
+                }
+                break;
+                
+            case ServerGameState.REWARD:
+                // Backend sends 20s for reward phase
+                if (timerValue > 0f)
+                {
+                    StartTimer(timerValue);
+                }
+                else
+                {
+                    Debug.LogWarning("[Timer] No timer provided for REWARD state, using default 20s");
+                    StartTimer(20f); // Fallback to 20 seconds
+                }
+                break;
+                
+            case ServerGameState.ENDGAME:
+                // No timer for endgame
+                Debug.Log("[Timer] ENDGAME state - stopping timer");
+                StopTimer();
+                break;
+                
+            case ServerGameState.JOINING:
+                // No timer for joining
+                StopTimer();
+                break;
+                
+            default:
+                Debug.LogWarning($"[Timer] Unknown server state: {currentServerState}");
+                StopTimer();
+                break;
         }
     }
 }
