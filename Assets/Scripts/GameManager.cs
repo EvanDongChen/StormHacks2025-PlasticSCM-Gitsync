@@ -116,6 +116,13 @@ public class GameManager : MonoBehaviour
     public float fadeInDuration = 0.5f;            // How long fade in takes
     public float fadeOutDuration = 0.3f;           // How long fade out takes
     
+    [Header("Phase Transition Settings")]
+    public Image phaseTransitionDimImage;          // Image for dimming screen during phase transitions
+    public TextMeshProUGUI phaseTransitionText;    // Text to display the phase name
+    public float phaseDimDuration = 0.5f;          // How long to fade in the overlay
+    public float phaseDisplayDuration = 3.0f;      // How long to show the phase text (total)
+    public float phaseFadeOutDuration = 0.5f;      // How long to fade out the overlay
+    
     [Header("Dynamic Font Settings")]
     public float minFontSize = 12f;                // Minimum font size
     public float maxFontSize = 48f;                // Maximum font size for questions
@@ -164,8 +171,10 @@ public class GameManager : MonoBehaviour
             nextPhaseButton.onClick.AddListener(NextPhase);
         }
         
-        // Initialize phase
-        SetPhase(GamePhase.Joining);
+        // Initialize phase (no transition on startup)
+        currentPhase = GamePhase.Joining;
+        UpdatePhaseUI();
+        Debug.Log($"Initial phase set to: {currentPhase}");
         
         // Initialize all game state panels to hidden
         HideAllGameStatePanels();
@@ -184,6 +193,21 @@ public class GameManager : MonoBehaviour
             triviaCanvasGroup.alpha = 0f;
             triviaCanvasGroup.gameObject.SetActive(false);
             triviaCanvasGroup.interactable = false;
+        }
+        
+        // Initialize phase transition overlay
+        if (phaseTransitionDimImage != null)
+        {
+            Color imageColor = phaseTransitionDimImage.color;
+            imageColor.a = 0f;
+            phaseTransitionDimImage.color = imageColor;
+            phaseTransitionDimImage.gameObject.SetActive(false);
+        }
+        
+        // Initialize phase transition text
+        if (phaseTransitionText != null)
+        {
+            phaseTransitionText.gameObject.SetActive(false);
         }
         
         // Setup dynamic font sizing for all text components
@@ -404,6 +428,29 @@ public class GameManager : MonoBehaviour
     // --- Server Game State Management ---
     
     public void UpdateServerGameState(ServerGameState newState, object data = null)
+    {
+        // Show phase transition for server state changes (except JOINING)
+        if (newState != ServerGameState.JOINING && newState != currentServerState)
+        {
+            StartCoroutine(UpdateServerGameStateWithTransition(newState, data));
+        }
+        else
+        {
+            // No transition needed, update immediately
+            UpdateServerGameStateImmediate(newState, data);
+        }
+    }
+    
+    private IEnumerator UpdateServerGameStateWithTransition(ServerGameState newState, object data)
+    {
+        // Show phase transition animation for server state
+        yield return StartCoroutine(ShowServerStateTransition(newState));
+        
+        // Update the actual server state after transition
+        UpdateServerGameStateImmediate(newState, data);
+    }
+    
+    private void UpdateServerGameStateImmediate(ServerGameState newState, object data)
     {
         currentServerState = newState;
         Debug.Log($"Server game state changed to: {currentServerState}");
@@ -800,6 +847,177 @@ public class GameManager : MonoBehaviour
         }
     }
     
+    // --- Phase Transition Methods ---
+    
+    private IEnumerator ShowServerStateTransition(ServerGameState newState)
+    {
+        if (phaseTransitionDimImage == null || phaseTransitionText == null)
+        {
+            Debug.LogWarning("Phase transition components not assigned. Skipping server state transition.");
+            yield break;
+        }
+        
+        // Get display name for server state
+        string stateDisplayName = GetServerStateDisplayName(newState);
+        
+        Debug.Log($"[Server State Transition] Starting transition to: {stateDisplayName}");
+        
+        // Set phase text and enable it (including parent hierarchy)
+        phaseTransitionText.text = stateDisplayName;
+        EnableUIElementHierarchy(phaseTransitionText.gameObject);
+        Debug.Log($"[Server State Transition] Text enabled: {phaseTransitionText.gameObject.activeInHierarchy}");
+        
+        // Enable overlay and set to transparent
+        EnableUIElementHierarchy(phaseTransitionDimImage.gameObject);
+        Color imageColor = phaseTransitionDimImage.color;
+        imageColor.a = 0f;
+        phaseTransitionDimImage.color = imageColor;
+        Debug.Log($"[Server State Transition] Dim image enabled: {phaseTransitionDimImage.gameObject.activeInHierarchy}");
+        
+        // Phase 1: Fade in the overlay (dim screen)
+        Debug.Log("[Server State Transition] Phase 1: Fading in overlay");
+        yield return StartCoroutine(FadeImage(phaseTransitionDimImage, 0.5f, phaseDimDuration));
+        
+        // Phase 2: Wait for display duration (showing phase text)
+        float remainingDisplayTime = phaseDisplayDuration - phaseDimDuration;
+        if (remainingDisplayTime > 0)
+        {
+            Debug.Log($"[Server State Transition] Phase 2: Displaying text for {remainingDisplayTime} seconds");
+            yield return new WaitForSeconds(remainingDisplayTime);
+        }
+        
+        // Phase 3: Fade out the overlay
+        Debug.Log("[Server State Transition] Phase 3: Fading out overlay");
+        yield return StartCoroutine(FadeImage(phaseTransitionDimImage, 0f, phaseFadeOutDuration));
+        
+        // Disable both overlay and text
+        phaseTransitionDimImage.gameObject.SetActive(false);
+        phaseTransitionText.gameObject.SetActive(false);
+        
+        Debug.Log($"Server state transition completed for: {stateDisplayName}");
+    }
+    
+    private string GetServerStateDisplayName(ServerGameState state)
+    {
+        switch (state)
+        {
+            case ServerGameState.JOINING:
+                return "Waiting for Players";
+            case ServerGameState.PROMPT:
+                return "Choose Category";
+            case ServerGameState.GENERATING:
+                return "Generating Questions";
+            case ServerGameState.TRIVIA:
+                return "Trivia Time!";
+            case ServerGameState.REWARD:
+                return "WHO GOT IT RIGHT?";
+            case ServerGameState.ENDGAME:
+                return "Game Over";
+            default:
+                return state.ToString();
+        }
+    }
+    
+    private IEnumerator FadeImage(Image image, float targetAlpha, float duration)
+    {
+        if (image == null)
+        {
+            yield break;
+        }
+        
+        Color startColor = image.color;
+        float startAlpha = startColor.a;
+        float elapsedTime = 0f;
+        
+        while (elapsedTime < duration)
+        {
+            elapsedTime += Time.deltaTime;
+            float progress = elapsedTime / duration;
+            float currentAlpha = Mathf.Lerp(startAlpha, targetAlpha, progress);
+            
+            Color newColor = startColor;
+            newColor.a = currentAlpha;
+            image.color = newColor;
+            
+            yield return null;
+        }
+        
+        // Ensure final alpha is set
+        Color finalColor = startColor;
+        finalColor.a = targetAlpha;
+        image.color = finalColor;
+    }
+    
+    private IEnumerator ShowPhaseTransition(GamePhase newPhase)
+    {
+        if (phaseTransitionDimImage == null || phaseTransitionText == null)
+        {
+            Debug.LogWarning("Phase transition components not assigned. Skipping transition animation.");
+            yield break;
+        }
+        
+        Debug.Log($"[Phase Transition] Starting transition to: {newPhase}");
+        
+        // Set phase text and enable it (including parent hierarchy)
+        string phaseDisplayName = GetPhaseDisplayName(newPhase);
+        phaseTransitionText.text = phaseDisplayName;
+        
+        // Enable the text component and ensure parent hierarchy is active
+        EnableUIElementHierarchy(phaseTransitionText.gameObject);
+        Debug.Log($"[Phase Transition] Text enabled: {phaseTransitionText.gameObject.activeInHierarchy}");
+        
+        // Enable overlay and set to transparent
+        EnableUIElementHierarchy(phaseTransitionDimImage.gameObject);
+        Color imageColor = phaseTransitionDimImage.color;
+        imageColor.a = 0f;
+        phaseTransitionDimImage.color = imageColor;
+        Debug.Log($"[Phase Transition] Dim image enabled: {phaseTransitionDimImage.gameObject.activeInHierarchy}");
+        
+        Debug.Log($"Starting phase transition to: {phaseDisplayName}");
+        
+        // Phase 1: Fade in the overlay (dim screen)
+        Debug.Log("[Phase Transition] Phase 1: Fading in overlay");
+        yield return StartCoroutine(FadeImage(phaseTransitionDimImage, 0.5f, phaseDimDuration));
+        
+        // Phase 2: Wait for display duration (showing phase text)
+        float remainingDisplayTime = phaseDisplayDuration - phaseDimDuration;
+        if (remainingDisplayTime > 0)
+        {
+            Debug.Log($"[Phase Transition] Phase 2: Displaying text for {remainingDisplayTime} seconds");
+            yield return new WaitForSeconds(remainingDisplayTime);
+        }
+        
+        // Phase 3: Fade out the overlay
+        Debug.Log("[Phase Transition] Phase 3: Fading out overlay");
+        yield return StartCoroutine(FadeImage(phaseTransitionDimImage, 0f, phaseFadeOutDuration));
+        
+        // Disable both overlay and text
+        phaseTransitionDimImage.gameObject.SetActive(false);
+        phaseTransitionText.gameObject.SetActive(false);
+        
+        Debug.Log($"Phase transition completed for: {phaseDisplayName}");
+    }
+    
+    private void EnableUIElementHierarchy(GameObject uiElement)
+    {
+        if (uiElement == null) return;
+        
+        // Enable the element itself
+        uiElement.SetActive(true);
+        
+        // Walk up the parent hierarchy and enable any disabled parents
+        Transform parent = uiElement.transform.parent;
+        while (parent != null)
+        {
+            if (!parent.gameObject.activeInHierarchy)
+            {
+                Debug.Log($"[Phase Transition] Enabling parent: {parent.name}");
+                parent.gameObject.SetActive(true);
+            }
+            parent = parent.parent;
+        }
+    }
+    
     // --- Dynamic Font Sizing Methods ---
     
     private void SetupTextAutoSizing(TextMeshProUGUI textComponent, float maxSize, bool isQuestion = false)
@@ -1184,10 +1402,44 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    // --- Phase Transition Helpers ---
+    
+    private string GetPhaseDisplayName(GamePhase phase)
+    {
+        switch (phase)
+        {
+            case GamePhase.Joining:
+                return "Waiting for Players";
+            case GamePhase.GamePhase:
+                return "Game Phase";
+            case GamePhase.PointPhase:
+                return "Point Phase";
+            default:
+                return phase.ToString();
+        }
+    }
+
     // --- Phase Management ---
     
     public void SetPhase(GamePhase newPhase)
     {
+        // Don't show transition if it's the same phase
+        if (currentPhase == newPhase)
+        {
+            Debug.Log($"Phase is already {currentPhase}, skipping transition");
+            return;
+        }
+        
+        // Start transition coroutine
+        StartCoroutine(SetPhaseWithTransition(newPhase));
+    }
+    
+    private IEnumerator SetPhaseWithTransition(GamePhase newPhase)
+    {
+        // Show phase transition animation
+        yield return StartCoroutine(ShowPhaseTransition(newPhase));
+        
+        // Update the actual phase after transition
         currentPhase = newPhase;
         UpdatePhaseUI();
         Debug.Log($"Phase changed to: {currentPhase}");
@@ -1505,5 +1757,63 @@ public class GameManager : MonoBehaviour
         }
         
         Debug.Log("=== END UI CHECK ===");
+    }
+    
+    [ContextMenu("Test Phase Transition")]
+    public void TestPhaseTransition()
+    {
+        Debug.Log("Testing phase transition manually");
+        SetPhase(GamePhase.GamePhase);
+    }
+    
+    [ContextMenu("Test Server State Transition")]
+    public void TestServerStateTransition()
+    {
+        Debug.Log("Testing server state transition manually");
+        UpdateServerGameState(ServerGameState.TRIVIA);
+    }
+    
+    [ContextMenu("Check Phase Transition Components")]
+    public void CheckPhaseTransitionComponents()
+    {
+        Debug.Log("=== PHASE TRANSITION COMPONENTS CHECK ===");
+        
+        if (phaseTransitionDimImage != null)
+        {
+            Debug.Log($"Phase Dim Image - Active: {phaseTransitionDimImage.gameObject.activeInHierarchy}, Color: {phaseTransitionDimImage.color}");
+            Debug.Log($"Phase Dim Image Parent Chain:");
+            Transform parent = phaseTransitionDimImage.transform.parent;
+            int level = 1;
+            while (parent != null && level < 5)
+            {
+                Debug.Log($"  Level {level}: {parent.name} - Active: {parent.gameObject.activeInHierarchy}");
+                parent = parent.parent;
+                level++;
+            }
+        }
+        else
+        {
+            Debug.LogError("Phase Transition Dim Image: NULL");
+        }
+        
+        if (phaseTransitionText != null)
+        {
+            Debug.Log($"Phase Text - Active: {phaseTransitionText.gameObject.activeInHierarchy}, Text: '{phaseTransitionText.text}'");
+            Debug.Log($"Phase Text Parent Chain:");
+            Transform parent = phaseTransitionText.transform.parent;
+            int level = 1;
+            while (parent != null && level < 5)
+            {
+                Debug.Log($"  Level {level}: {parent.name} - Active: {parent.gameObject.activeInHierarchy}");
+                parent = parent.parent;
+                level++;
+            }
+        }
+        else
+        {
+            Debug.LogError("Phase Transition Text: NULL");
+        }
+        
+        Debug.Log("=== END PHASE TRANSITION CHECK ===");
     }
 }
