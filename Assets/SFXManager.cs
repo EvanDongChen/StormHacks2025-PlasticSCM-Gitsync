@@ -42,6 +42,19 @@ public class SFXManager : MonoBehaviour
         }
 
         audioSource.PlayOneShot(soundEffects[index]);
-        
+
     }
+    
+    public void PlayRandomSFX()
+    {
+        if (soundEffects == null || soundEffects.Length == 0)
+        {
+            Debug.LogWarning("No sound effects assigned in SFXManager.");
+            return;
+        }
+
+        int randomIndex = Random.Range(0, soundEffects.Length);
+        audioSource.PlayOneShot(soundEffects[randomIndex]);
+    }
+
 }
