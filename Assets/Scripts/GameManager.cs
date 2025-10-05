@@ -85,8 +85,6 @@ public class GameManager : MonoBehaviour
     
     [Header("Game UI")]
     public TextMeshProUGUI lobbyCodeDisplay;
-    public TextMeshProUGUI playerCountDisplay;
-    public TextMeshProUGUI playerListDisplay;
     public TextMeshProUGUI phaseDisplay;
     
     [Header("Trivia UI")]
@@ -216,7 +214,6 @@ public class GameManager : MonoBehaviour
             {
                 lastPlayerList = new List<string>(currentPlayers);
                 UpdatePlayerDataFromNetworkScript();
-                UpdatePlayerDisplay();
             }
         }
     }
@@ -296,7 +293,6 @@ public class GameManager : MonoBehaviour
         {
             player.health = Mathf.Clamp(player.health + healthChange, 0, 100);
             Debug.Log($"{playerName} health: {player.health}");
-            UpdatePlayerDisplay();
         }
     }
     
@@ -401,14 +397,6 @@ public class GameManager : MonoBehaviour
         {
             lobbyCodeDisplay.text = $"Lobby: {lobbyCode}";
         }
-        
-        if (playerCountDisplay != null)
-        {
-            playerCountDisplay.text = isHost ? "Host" : "Player";
-        }
-        
-        // Initial player display
-        UpdatePlayerDisplay();
         
         Debug.Log($"Game started! Lobby: {lobbyCode}, Host: {isHost}");
     }
@@ -1163,9 +1151,6 @@ public class GameManager : MonoBehaviour
                 DamagePlayer(result.playerId);
             }
         }
-        
-        // Update the display
-        UpdatePlayerDisplay();
     }
     
     private void StartDamageAnimations()
@@ -1196,7 +1181,6 @@ public class GameManager : MonoBehaviour
         if (player != null)
         {
             player.submitted = submitted;
-            UpdatePlayerDisplay();
         }
     }
 
@@ -1273,27 +1257,6 @@ public class GameManager : MonoBehaviour
         }
         
         return false;
-    }
-    
-    private void UpdatePlayerDisplay()
-    {
-        if (playerListDisplay != null)
-        {
-            if (playersData.Count > 0)
-            {
-                string playerText = $"Players ({playersData.Count}):\n";
-                foreach (PlayerData player in playersData)
-                {
-                    string submittedMark = player.submitted ? "✓" : "";
-                    playerText += $"{player.playerName} - HP: {player.health} {submittedMark}\n";
-                }
-                playerListDisplay.text = playerText.TrimEnd('\n');
-            }
-            else
-            {
-                playerListDisplay.text = "Players (0):\nWaiting for players...";
-            }
-        }
     }
     
     // Method to return to main menu

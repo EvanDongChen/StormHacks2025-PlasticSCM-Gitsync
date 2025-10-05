@@ -7,12 +7,21 @@ public class DogController : MonoBehaviour
     [Header("Dog Info")]
     public PlayerData playerData;
     
+    [Header("UI Child Objects")]
+    public GameObject nameObject;  // Child GameObject with TextMeshPro component
+    public GameObject healthObject; // Child GameObject where hearts will be spawned
+    
     [Header("Dog Components")]
     public TextMeshPro nameLabel;
     public TextMeshPro healthLabel;
     public Renderer dogRenderer; // This will be the BottomCoat renderer for coloring
     public Renderer topCoatRenderer; // For animations
     public Renderer bottomCoatRenderer; // For coloring and animations
+    
+    [Header("Health Hearts")]
+    public Sprite heartSprite; // Heart image to spawn for each health point
+    public GameObject[] heartObjects = new GameObject[4]; // Array to hold 4 heart GameObjects
+    public float heartSpacing = 0.3f; // Spacing between hearts
     
     [Header("Eye Sprites")]
     public SpriteRenderer eyesRenderer; // The SpriteRenderer that shows the eyes
@@ -36,6 +45,25 @@ public class DogController : MonoBehaviour
     
     void Start()
     {
+        // Find child GameObjects if not assigned
+        if (nameObject == null)
+        {
+            Transform nameChild = transform.Find("Name");
+            if (nameChild != null)
+            {
+                nameObject = nameChild.gameObject;
+            }
+        }
+        
+        if (healthObject == null)
+        {
+            Transform healthChild = transform.Find("Health");
+            if (healthChild != null)
+            {
+                healthObject = healthChild.gameObject;
+            }
+        }
+        
         SetupLabels();
         SetDogColor();
         SetupEyes();
@@ -58,26 +86,31 @@ public class DogController : MonoBehaviour
     {
         if (playerData == null) return;
         
-        // Setup name label
-        if (nameLabel != null)
+        // Setup name label using existing TextMeshPro component on Name child
+        if (nameObject != null)
         {
-            nameLabel.text = playerData.playerName;
-            if (playerData.isHost)
+            nameLabel = nameObject.GetComponent<TextMeshPro>();
+            if (nameLabel != null)
             {
-                nameLabel.text += " (Host)";
+                nameLabel.text = playerData.playerName;
+                if (playerData.isHost)
+                {
+                    nameLabel.text += " (Host)";
+                }
+            }
+            else
+            {
+                Debug.LogWarning("Name GameObject found but no TextMeshPro component attached!");
             }
         }
         else
         {
-            // Create name label if it doesn't exist
+            // Create name label if Name GameObject doesn't exist
             CreateNameLabel();
         }
         
-        // Setup health label
-        if (healthLabel == null)
-        {
-            CreateHealthLabel();
-        }
+        // Setup health hearts instead of health bar
+        SetupHealthHearts();
     }
     
     void CreateNameLabel()
@@ -95,29 +128,98 @@ public class DogController : MonoBehaviour
     
     void CreateHealthLabel()
     {
-        GameObject labelObj = new GameObject("HealthLabel");
-        labelObj.transform.SetParent(transform);
-        labelObj.transform.localPosition = new Vector3(0, 1.5f, 0);
+        // This method is now replaced by SetupHealthHearts
+        // Keeping for backward compatibility but not used
+    }
+    
+    void SetupHealthHearts()
+    {
+        if (healthObject == null)
+        {
+            Debug.LogWarning("Health GameObject not found! Hearts will not be displayed.");
+            return;
+        }
         
-        healthLabel = labelObj.AddComponent<TextMeshPro>();
-        healthLabel.fontSize = 1.5f;
-        healthLabel.alignment = TextAlignmentOptions.Center;
-        healthLabel.color = Color.green;
+        // Clear any existing hearts
+        for (int i = 0; i < heartObjects.Length; i++)
+        {
+            if (heartObjects[i] != null)
+            {
+                DestroyImmediate(heartObjects[i]);
+                heartObjects[i] = null;
+            }
+        }
+        
+        // Create 4 heart GameObjects
+        for (int i = 0; i < 4; i++)
+        {
+            GameObject heartObj = new GameObject($"Heart_{i}");
+            heartObj.transform.SetParent(healthObject.transform);
+            
+            // Position hearts horizontally with spacing
+            heartObj.transform.localPosition = new Vector3((i - 1.5f) * heartSpacing, 0, 0);
+            
+            // Add SpriteRenderer component
+            SpriteRenderer heartRenderer = heartObj.AddComponent<SpriteRenderer>();
+            
+            if (heartSprite != null)
+            {
+                heartRenderer.sprite = heartSprite;
+            }
+            else
+            {
+                // Create a simple heart-shaped sprite if none provided
+                heartRenderer.sprite = CreateDefaultHeartSprite();
+            }
+            
+            // Scale the heart appropriately
+            heartObj.transform.localScale = Vector3.one * 0.5f;
+            
+            heartObjects[i] = heartObj;
+        }
+        
+        // Update heart display based on current health
+        UpdateHealthHearts();
+    }
+    
+    Sprite CreateDefaultHeartSprite()
+    {
+        // Create a simple red square as a default heart
+        Texture2D texture = new Texture2D(16, 16);
+        Color heartColor = Color.red;
+        
+        for (int x = 0; x < 16; x++)
+        {
+            for (int y = 0; y < 16; y++)
+            {
+                texture.SetPixel(x, y, heartColor);
+            }
+        }
+        
+        texture.Apply();
+        return Sprite.Create(texture, new Rect(0, 0, 16, 16), new Vector2(0.5f, 0.5f));
     }
     
     void UpdateHealthLabel()
     {
-        if (healthLabel != null && playerData != null)
+        // Update hearts instead of health label
+        UpdateHealthHearts();
+    }
+    
+    void UpdateHealthHearts()
+    {
+        if (heartObjects == null || playerData == null) return;
+        
+        // Convert health (0-100) to hearts (0-4)
+        int activeHearts = Mathf.Clamp(playerData.health, 0, 4);
+        
+        for (int i = 0; i < heartObjects.Length; i++)
         {
-            healthLabel.text = $"HP: {playerData.health}";
-            
-            // Change color based on health
-            if (playerData.health > 70)
-                healthLabel.color = Color.green;
-            else if (playerData.health > 30)
-                healthLabel.color = Color.yellow;
-            else
-                healthLabel.color = Color.red;
+            if (heartObjects[i] != null)
+            {
+                // Show hearts based on current health, hide hearts beyond current health
+                heartObjects[i].SetActive(i < activeHearts);
+            }
         }
     }
     
