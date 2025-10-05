@@ -335,12 +335,9 @@ public class GameManager : MonoBehaviour
     {
         if (NetworkScript.Instance != null && NetworkScript.Instance.isHost && currentPhase == GamePhase.Joining)
         {
-            SetPhase(GamePhase.GamePhase);
-            Debug.Log("Game started by host!");
-            
-            // For now, just log that we want to start the game
-            // SocketManager integration will be handled by GameUIController
-            Debug.Log("Starting trivia game...");
+            Debug.Log("[GameManager] StartGame button clicked. Telling NetworkScript to emit the event.");
+
+            NetworkScript.Instance.StartGame();
         }
     }
     
