@@ -789,7 +789,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4e1cc6f7d7fb96f4c96a0b0764a25f9d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  targetPosition: {fileID: 0}
+  hoverPosition: {fileID: 0}
   moveSpeed: 5
 --- !u!1 &2043062418
 GameObject:
@@ -826,6 +826,8 @@ MonoBehaviour:
   promptPosition: {fileID: 0}
   attackingPosition: {fileID: 0}
   moveSpeed: 5
+  leftHand: {fileID: 0}
+  rightHand: {fileID: 0}
 --- !u!4 &2043062421
 Transform:
   m_ObjectHideFlags: 0
