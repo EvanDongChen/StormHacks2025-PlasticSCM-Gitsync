@@ -1,9 +1,9 @@
 using UnityEngine;
 
-public class RightHandFSM : MonoBehaviour
+public class RightHandController : MonoBehaviour
 {
     [Header("Movement")]
-    public Transform hoverPosition;
+    public Transform hoverPosition;  // Position to move to when hovering
     public float moveSpeed = 5f;
 
     private Animator animator;
@@ -13,7 +13,7 @@ public class RightHandFSM : MonoBehaviour
     void Start()
     {
         animator = GetComponent<Animator>();
-        gameObject.SetActive(false);
+        gameObject.SetActive(false); // start hidden
     }
 
     void Update()
