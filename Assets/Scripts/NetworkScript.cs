@@ -209,7 +209,12 @@ public class NetworkScript : MonoBehaviour
                         {
                             foreach (var player in players)
                             {
-                                GameManager.Instance.UpdatePlayerSubmissionStatus(player.playerName, player.submitted);
+                                // Update complete player data including health, not just submission status
+                                GameManager.Instance.UpdatePlayerData(
+                                    player.playerName, 
+                                    health: player.health, 
+                                    submitted: player.submitted
+                                );
                             }
                         }
                     });
