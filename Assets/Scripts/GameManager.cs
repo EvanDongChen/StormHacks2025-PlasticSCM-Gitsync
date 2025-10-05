@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections.Generic;
+using System.Linq;
 
 [System.Serializable]
 public class PlayerData
@@ -27,6 +28,8 @@ public enum GamePhase
 
 public class GameManager : MonoBehaviour
 {
+    public static GameManager Instance { get; private set; }
+    
     [Header("Game Phases")]
     public GamePhase currentPhase = GamePhase.Joining;
     
@@ -53,6 +56,16 @@ public class GameManager : MonoBehaviour
     
     void Start()
     {
+        // Set up singleton
+        if (Instance == null)
+        {
+            Instance = this;
+        }
+        else
+        {
+            Debug.LogWarning("Multiple GameManager instances detected!");
+        }
+        
         // Set up button listeners
         if (startGameButton != null)
         {
@@ -88,13 +101,41 @@ public class GameManager : MonoBehaviour
             if (HasPlayerListChanged(currentPlayers))
             {
                 lastPlayerList = new List<string>(currentPlayers);
-                UpdatePlayerDataFromServer();
+                UpdatePlayerDataFromNetworkScript();
                 UpdatePlayerDisplay();
             }
         }
     }
     
     // --- Player Data Management ---
+    
+    private void UpdatePlayerDataFromNetworkScript()
+    {
+        if (NetworkScript.Instance == null) return;
+        
+        var serverPlayers = NetworkScript.Instance.playersInLobby;
+        
+        // Clear existing player data and dogs
+        foreach (var dog in activeDogs.ToArray())
+        {
+            if (dog != null)
+            {
+                Destroy(dog);
+            }
+        }
+        activeDogs.Clear();
+        playersData.Clear();
+        
+        // Add all players from NetworkScript and spawn dogs
+        foreach (string playerName in serverPlayers)
+        {
+            PlayerData newPlayer = new PlayerData(playerName, false); // No host players in game
+            playersData.Add(newPlayer);
+            SpawnDogForPlayer(newPlayer);
+        }
+        
+        Debug.Log($"[GameManager] Player list updated: {serverPlayers.Count} players, {activeDogs.Count} dogs spawned");
+    }
     
     private void UpdatePlayerDataFromServer()
     {
@@ -162,6 +203,14 @@ public class GameManager : MonoBehaviour
         if (dogPrefab == null)
         {
             Debug.LogWarning("Dog prefab not assigned! Please assign a dog prefab in the inspector.");
+            return;
+        }
+        
+        // Check if a dog already exists for this player
+        GameObject existingDog = GetDogForPlayer(playerData.playerName);
+        if (existingDog != null)
+        {
+            Debug.LogWarning($"Dog already exists for {playerData.playerName}. Skipping spawn.");
             return;
         }
         
@@ -284,13 +333,14 @@ public class GameManager : MonoBehaviour
     
     public void StartGame()
     {
-        if (NetworkScript.Instance.isHost && currentPhase == GamePhase.Joining)
+        if (NetworkScript.Instance != null && NetworkScript.Instance.isHost && currentPhase == GamePhase.Joining)
         {
             SetPhase(GamePhase.GamePhase);
             Debug.Log("Game started by host!");
             
-            // You can emit a socket event to notify other players
-            // NetworkScript.Instance.socket.Emit("gameStarted");
+            // For now, just log that we want to start the game
+            // SocketManager integration will be handled by GameUIController
+            Debug.Log("Starting trivia game...");
         }
     }
     

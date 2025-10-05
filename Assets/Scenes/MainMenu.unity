@@ -1431,6 +1431,7 @@ MonoBehaviour:
   lobbyCodeDisplay: {fileID: 698070415}
   connectionStatusText: {fileID: 1279291538}
   networkScript: {fileID: 1308448977}
+  targetImage: {fileID: 1703827406}
 --- !u!114 &1308448977
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1574,6 +1575,8 @@ GameObject:
   - component: {fileID: 1703827407}
   - component: {fileID: 1703827406}
   - component: {fileID: 1703827408}
+  - component: {fileID: 1703827409}
+  - component: {fileID: 1703827410}
   m_Layer: 5
   m_Name: Logo
   m_TagString: Untagged
@@ -1660,6 +1663,118 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &1703827409
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1703827404}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4584cae70ab0dae42a6ff90363a1cf0e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  outlineColor:
+    r: 1
+    g: 1
+    b: 1
+    a: 1
+  outlineWidth: 2
+  animateOutline: 1
+  pulseSpeed: 2
+  minIntensity: 0.5
+  maxIntensity: 1
+  outlineMethod: 0
+  spriteRenderer: {fileID: 0}
+  uiImage: {fileID: 0}
+  isUIElement: 0
+  outlineRenderers: []
+  uiOutline: {fileID: 0}
+  uiShadows: []
+  animationTimer: 0
+  outlineOffsets:
+  - {x: -1, y: 1}
+  - {x: 0, y: 1}
+  - {x: 1, y: 1}
+  - {x: -1, y: 0}
+  - {x: 1, y: 0}
+  - {x: -1, y: -1}
+  - {x: 0, y: -1}
+  - {x: 1, y: -1}
+--- !u!114 &1703827410
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1703827404}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2abc9c01b286afb4cbda2aba9c189f02, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  primaryOutlineColor:
+    r: 1
+    g: 1
+    b: 1
+    a: 1
+  secondaryOutlineColor:
+    r: 0.8
+    g: 0.4
+    b: 1
+    a: 0.8
+  outlineWidth: 2
+  useParticleEffects: 1
+  useGlowEffect: 1
+  usePulseAnimation: 1
+  useShimmerEffect: 1
+  pulseSpeed: 1.5
+  shimmerSpeed: 3
+  glowIntensity: 2
+  pulseCurve:
+    m_Curve:
+    - time: 0
+      value: 0.5
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  particleCount: 20
+  particleLifetime: 2
+  particleSpeed: 0.5
+  spriteRenderer: {fileID: 0}
+  uiImage: {fileID: 0}
+  isUIElement: 0
+  outlineRenderers: []
+  uiOutlines: []
+  uiShadows: []
+  magicalParticles: {fileID: 0}
+  glowLight: {fileID: 0}
+  animationTimer: 0
+  outlineMaterials: []
+  outlineDirections:
+  - {x: -1, y: 1}
+  - {x: 0, y: 1}
+  - {x: 1, y: 1}
+  - {x: -1, y: 0}
+  - {x: 1, y: 0}
+  - {x: -1, y: -1}
+  - {x: 0, y: -1}
+  - {x: 1, y: -1}
 --- !u!1 &1917484728
 GameObject:
   m_ObjectHideFlags: 0
@@ -1822,8 +1937,53 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 6125629513943100591, guid: 24ece450b1a913440be8de88bc68136c, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 183403033798232278}
   m_SourcePrefab: {fileID: 100100000, guid: 24ece450b1a913440be8de88bc68136c, type: 3}
+--- !u!1 &183403033798232277 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6125629513943100591, guid: 24ece450b1a913440be8de88bc68136c, type: 3}
+  m_PrefabInstance: {fileID: 183403033798232276}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &183403033798232278
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 183403033798232277}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d7644e8f25a97ca48a3564efb14a25d6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  outlineColor:
+    r: 1
+    g: 1
+    b: 1
+    a: 1
+  outlineWidth: 2
+  animateOutline: 1
+  pulseSpeed: 2
+  minIntensity: 0.5
+  maxIntensity: 1
+  outlineMethod: 0
+  originalRenderer: {fileID: 0}
+  outlineRenderers: []
+  lineRenderer: {fileID: 0}
+  outlineMaterial: {fileID: 0}
+  animationTimer: 0
+  outlineOffsets:
+  - {x: -1, y: 1}
+  - {x: 0, y: 1}
+  - {x: 1, y: 1}
+  - {x: -1, y: 0}
+  - {x: 1, y: 0}
+  - {x: -1, y: -1}
+  - {x: 0, y: -1}
+  - {x: 1, y: -1}
 --- !u!1001 &5972604516932642610
 PrefabInstance:
   m_ObjectHideFlags: 0
