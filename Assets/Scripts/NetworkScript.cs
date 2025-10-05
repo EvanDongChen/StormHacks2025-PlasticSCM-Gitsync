@@ -490,6 +490,9 @@ public class NetworkScript : MonoBehaviour
             // Parse additional data based on state
             switch (result.state)
             {
+                case ServerGameState.PROMPT:
+                    result.data = ParseGameStateData(jsonResponse);
+                    break;
                 case ServerGameState.TRIVIA:
                     result.data = ParseTriviaData(jsonResponse);
                     break;
@@ -506,6 +509,27 @@ public class NetworkScript : MonoBehaviour
         catch (System.Exception e)
         {
             Debug.LogError($"Error parsing game state change: {e.Message}");
+            return null;
+        }
+    }
+
+    private GameStateData ParseGameStateData(string jsonResponse)
+    {
+        var gameStateData = new GameStateData();
+        
+        try
+        {
+            // Parse timer if available
+            gameStateData.timer = ExtractTimerValue(jsonResponse);
+            
+            // Parse players if available
+            gameStateData.players = ExtractPlayersArray(jsonResponse);
+            
+            return gameStateData;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error parsing game state data: {e.Message}");
             return null;
         }
     }
@@ -544,7 +568,6 @@ public class NetworkScript : MonoBehaviour
                     }
                     
                     Debug.Log($"Parsed trivia: Q='{triviaData.question}' A='{triviaData.options[0]}' B='{triviaData.options[1]}' C='{triviaData.options[2]}' D='{triviaData.options[3]}'");
-                    return triviaData;
                 }
             }
             
@@ -563,6 +586,12 @@ public class NetworkScript : MonoBehaviour
             {
                 triviaData.options = ExtractOptionsArray(jsonResponse);
             }
+            
+            // Parse timer if available
+            triviaData.timer = ExtractTimerValue(jsonResponse);
+            
+            // Parse players if available  
+            triviaData.players = ExtractPlayersArray(jsonResponse);
             
             return triviaData;
         }
@@ -668,6 +697,15 @@ public class NetworkScript : MonoBehaviour
             
             // For now, we'll update player health in GameManager based on the results
             // More complex parsing can be added here as needed
+            
+            // Parse results array for damage animations
+            rewardData.results = ExtractResultsArray(jsonResponse);
+            
+            // Parse timer if available
+            rewardData.timer = ExtractTimerValue(jsonResponse);
+            
+            // Parse players if available
+            rewardData.players = ExtractPlayersArray(jsonResponse);
             
             return rewardData;
         }
@@ -806,5 +844,223 @@ public class NetworkScript : MonoBehaviour
         }
         
         return null;
+    }
+
+    private float ExtractTimerValue(string jsonResponse)
+    {
+        try
+        {
+            if (jsonResponse.Contains("\"timer\":"))
+            {
+                int timerStart = jsonResponse.IndexOf("\"timer\":") + 8;
+                int timerEnd = jsonResponse.IndexOf(",", timerStart);
+                if (timerEnd == -1) timerEnd = jsonResponse.IndexOf("}", timerStart);
+                
+                if (timerStart > 7 && timerEnd > timerStart)
+                {
+                    string timerStr = jsonResponse.Substring(timerStart, timerEnd - timerStart).Trim();
+                    Debug.Log($"[Timer Parsing] Raw timer string: '{timerStr}' from JSON: {jsonResponse}");
+                    
+                    if (float.TryParse(timerStr, out float timer))
+                    {
+                        Debug.Log($"[Timer Parsing] Successfully parsed timer: {timer}s");
+                        return timer;
+                    }
+                    else
+                    {
+                        Debug.LogError($"[Timer Parsing] Failed to parse timer string: '{timerStr}'");
+                    }
+                }
+                else
+                {
+                    Debug.LogError($"[Timer Parsing] Invalid timer indices - start: {timerStart}, end: {timerEnd}");
+                }
+            }
+            else
+            {
+                Debug.Log("[Timer Parsing] No timer field found in JSON response");
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error extracting timer value: {e.Message}");
+        }
+        
+        return 0f; // Default to 0 if no timer found
+    }
+
+    private PlayerData[] ExtractPlayersArray(string jsonResponse)
+    {
+        try
+        {
+            if (jsonResponse.Contains("\"players\":"))
+            {
+                int playersStart = jsonResponse.IndexOf("\"players\":");
+                if (playersStart != -1)
+                {
+                    int arrayStart = jsonResponse.IndexOf("[", playersStart);
+                    int arrayEnd = FindMatchingBracket(jsonResponse, arrayStart, '[', ']');
+                    
+                    if (arrayStart != -1 && arrayEnd != -1)
+                    {
+                        string playersSection = jsonResponse.Substring(arrayStart + 1, arrayEnd - arrayStart - 1);
+                        
+                        // Parse individual player objects
+                        var playersList = new List<PlayerData>();
+                        int currentPos = 0;
+                        
+                        while (currentPos < playersSection.Length)
+                        {
+                            int objStart = playersSection.IndexOf("{", currentPos);
+                            if (objStart == -1) break;
+                            
+                            int objEnd = FindMatchingBracket(playersSection, objStart, '{', '}');
+                            if (objEnd == -1) break;
+                            
+                            string playerObj = playersSection.Substring(objStart, objEnd - objStart + 1);
+                            var playerData = ParsePlayerFromJson(playerObj);
+                            if (playerData != null)
+                            {
+                                playersList.Add(new PlayerData(playerData.playerName)
+                                {
+                                    health = playerData.health,
+                                    submitted = playerData.submitted
+                                });
+                            }
+                            
+                            currentPos = objEnd + 1;
+                        }
+                        
+                        return playersList.ToArray();
+                    }
+                }
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error extracting players array: {e.Message}");
+        }
+        
+        return null;
+    }
+
+    private int FindMatchingBracket(string json, int startPos, char openBracket, char closeBracket)
+    {
+        int count = 1;
+        for (int i = startPos + 1; i < json.Length; i++)
+        {
+            if (json[i] == openBracket) count++;
+            else if (json[i] == closeBracket) count--;
+            
+            if (count == 0) return i;
+        }
+        return -1;
+    }
+
+    private PlayerResult[] ExtractResultsArray(string jsonResponse)
+    {
+        try
+        {
+            if (jsonResponse.Contains("\"results\":"))
+            {
+                int resultsStart = jsonResponse.IndexOf("\"results\":");
+                if (resultsStart != -1)
+                {
+                    int arrayStart = jsonResponse.IndexOf("[", resultsStart);
+                    int arrayEnd = FindMatchingBracket(jsonResponse, arrayStart, '[', ']');
+                    
+                    if (arrayStart != -1 && arrayEnd != -1)
+                    {
+                        string resultsSection = jsonResponse.Substring(arrayStart + 1, arrayEnd - arrayStart - 1);
+                        
+                        // Parse individual result objects
+                        var resultsList = new List<PlayerResult>();
+                        int currentPos = 0;
+                        
+                        while (currentPos < resultsSection.Length)
+                        {
+                            int objStart = resultsSection.IndexOf("{", currentPos);
+                            if (objStart == -1) break;
+                            
+                            int objEnd = FindMatchingBracket(resultsSection, objStart, '{', '}');
+                            if (objEnd == -1) break;
+                            
+                            string resultObj = resultsSection.Substring(objStart, objEnd - objStart + 1);
+                            var result = ParseSingleResultFromJson(resultObj);
+                            if (result != null)
+                            {
+                                resultsList.Add(result);
+                            }
+                            
+                            currentPos = objEnd + 1;
+                        }
+                        
+                        return resultsList.ToArray();
+                    }
+                }
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error extracting results array: {e.Message}");
+        }
+        
+        return null;
+    }
+
+    private PlayerResult ParseSingleResultFromJson(string resultJson)
+    {
+        try
+        {
+            var result = new PlayerResult();
+            
+            // Extract playerId
+            if (resultJson.Contains("\"playerId\":"))
+            {
+                int playerIdStart = resultJson.IndexOf("\"playerId\":\"") + 12;
+                int playerIdEnd = resultJson.IndexOf("\"", playerIdStart);
+                if (playerIdStart > 11 && playerIdEnd > playerIdStart)
+                {
+                    result.playerId = resultJson.Substring(playerIdStart, playerIdEnd - playerIdStart);
+                }
+            }
+            
+            // Extract isCorrect
+            if (resultJson.Contains("\"isCorrect\":"))
+            {
+                int isCorrectStart = resultJson.IndexOf("\"isCorrect\":") + 12;
+                int isCorrectEnd = resultJson.IndexOfAny(new char[] { ',', '}' }, isCorrectStart);
+                if (isCorrectStart > 11 && isCorrectEnd > isCorrectStart)
+                {
+                    string isCorrectStr = resultJson.Substring(isCorrectStart, isCorrectEnd - isCorrectStart).Trim();
+                    if (bool.TryParse(isCorrectStr, out bool isCorrect))
+                    {
+                        result.isCorrect = isCorrect;
+                    }
+                }
+            }
+            
+            // Extract selectedAnswer (optional)
+            if (resultJson.Contains("\"selectedAnswer\":"))
+            {
+                int selectedStart = resultJson.IndexOf("\"selectedAnswer\":") + 17;
+                int selectedEnd = resultJson.IndexOfAny(new char[] { ',', '}' }, selectedStart);
+                if (selectedStart > 16 && selectedEnd > selectedStart)
+                {
+                    string selectedStr = resultJson.Substring(selectedStart, selectedEnd - selectedStart).Trim();
+                    if (int.TryParse(selectedStr, out int selectedAnswer))
+                    {
+                        result.selectedAnswer = selectedAnswer;
+                    }
+                }
+            }
+            
+            return result;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error parsing result from JSON: {e.Message}");
+            return null;
+        }
     }
 }
