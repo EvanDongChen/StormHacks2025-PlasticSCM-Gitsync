@@ -128,7 +128,7 @@ public class GameManager : MonoBehaviour
     public CanvasGroup endGameCanvasGroup;         // Canvas group for fading endgame elements
     public float endGameFadeDuration = 2.0f;       // How long the endgame fade takes
     public Color endGameOverlayColor = new Color(0, 0, 0, 0.9f); // Very dark overlay color
-    public Vector3 centerScreenPosition = new Vector3(-3f, -1.5f, 0); // Position where winning dog should move to
+    public Vector3 centerScreenPosition = new Vector3(-3.5f, -1.5f, 0); // Position where winning dog should move to
     public float dogMoveDuration = 1.5f;           // How long it takes for the dog to move to center
     public float dogMoveDelay = 1.0f;              // Delay before moving dog to center
     
@@ -1615,6 +1615,8 @@ public class GameManager : MonoBehaviour
     
     private IEnumerator MoveWinningDogToCenter()
     {
+        Debug.Log($"[EndGame] MoveWinningDogToCenter started");
+        
         if (currentEndGameData?.winners == null || currentEndGameData.winners.Length == 0)
         {
             Debug.LogWarning("[EndGame] No winners to move to center");
@@ -1623,6 +1625,8 @@ public class GameManager : MonoBehaviour
         
         // For multiple winners, just move the first one for dramatic effect
         string winnerName = currentEndGameData.winners[0];
+        Debug.Log($"[EndGame] Looking for dog for winner: {winnerName}");
+        
         GameObject winnerDog = GetDogForPlayer(winnerName);
         
         if (winnerDog == null)
@@ -1631,10 +1635,15 @@ public class GameManager : MonoBehaviour
             yield break;
         }
         
+        Debug.Log($"[EndGame] Found winner dog: {winnerDog.name}");
+        
         Vector3 startPosition = winnerDog.transform.position;
         Vector3 targetPosition = centerScreenPosition;
         
-        Debug.Log($"[EndGame] centerScreenPosition variable value: {centerScreenPosition}");
+        Debug.Log($"[EndGame] DEBUGGING VALUES:");
+        Debug.Log($"[EndGame] centerScreenPosition field value: {centerScreenPosition}");
+        Debug.Log($"[EndGame] targetPosition variable value: {targetPosition}");
+        Debug.Log($"[EndGame] startPosition: {startPosition}");
         Debug.Log($"[EndGame] Moving {winnerName}'s dog from {startPosition} to {targetPosition}");
         
         float elapsedTime = 0f;
@@ -1646,12 +1655,32 @@ public class GameManager : MonoBehaviour
             // Use smooth easing for more dramatic movement
             float easedProgress = Mathf.SmoothStep(0f, 1f, progress);
             
-            winnerDog.transform.position = Vector3.Lerp(startPosition, targetPosition, easedProgress);
+            Vector3 newPosition = Vector3.Lerp(startPosition, targetPosition, easedProgress);
+            winnerDog.transform.position = newPosition;
+            
+            // Debug every few frames
+            if (Time.frameCount % 10 == 0)
+            {
+                Debug.Log($"[EndGame] Moving progress: {progress:F2}, position: {newPosition}");
+            }
+            
             yield return null;
         }
         
         winnerDog.transform.position = targetPosition;
-        Debug.Log($"[EndGame] {winnerName}'s dog reached center position");
+        Debug.Log($"[EndGame] {winnerName}'s dog reached final position: {winnerDog.transform.position}");
+        
+        // FORCE SET THE POSITION MULTIPLE TIMES TO OVERRIDE ANY INTERFERENCE
+        for (int i = 0; i < 5; i++)
+        {
+            winnerDog.transform.position = new Vector3(-3.5f, -1.5f, 0f);
+            yield return new WaitForSeconds(0.02f);
+            Debug.Log($"[EndGame] Force set attempt {i + 1}: {winnerDog.transform.position}");
+        }
+        
+        // Wait a moment and check if position changed
+        yield return new WaitForSeconds(0.1f);
+        Debug.Log($"[EndGame] Position after 0.1s delay: {winnerDog.transform.position}");
     }
     
     private void ShowMainMenuButton()
