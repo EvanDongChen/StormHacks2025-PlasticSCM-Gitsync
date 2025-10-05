@@ -39,6 +39,7 @@ public class RewardData
 public class PlayerResult
 {
     public string playerId;
+    public string playerName;
     public bool isCorrect;
     public int selectedAnswer;
 }
@@ -99,6 +100,9 @@ public class GameManager : MonoBehaviour
     public TextMeshProUGUI phaseDisplay;
     public TextMeshProUGUI roundTimerDisplay;      // Timer display for current round
     
+    [Header("Host")]
+    public HostScript hostScript;                   // Reference to the host script for state changes
+    
     [Header("Trivia UI")]
     public GameObject promptWaitingPanel;          // "Players are choosing a category..."
     // public GameObject loadingPanel;                // "Generating Questions..." 
@@ -123,9 +127,15 @@ public class GameManager : MonoBehaviour
     public CanvasGroup endGameCanvasGroup;         // Canvas group for fading endgame elements
     public float endGameFadeDuration = 2.0f;       // How long the endgame fade takes
     public Color endGameOverlayColor = new Color(0, 0, 0, 0.9f); // Very dark overlay color
-    public Vector3 centerScreenPosition = new Vector3(-1, -1, 0); // Position where winning dog should move to
+    public Vector3 centerScreenPosition = new Vector3(-3f, -1.5f, 0); // Position where winning dog should move to
     public float dogMoveDuration = 1.5f;           // How long it takes for the dog to move to center
     public float dogMoveDelay = 1.0f;              // Delay before moving dog to center
+    
+    [Header("Reward Effect Prefabs")]
+    public GameObject starEffectPrefab;            // Star effect prefab for correct answers
+    public GameObject bloodEffectPrefab;           // Blood effect prefab for incorrect answers
+    public float effectDuration = 3.0f;           // How long effects should last
+    public Vector3 effectOffset = Vector3.zero;   // Offset from dog position for effects
     
     [Header("Trivia UI Images")]
     public Image questionImage;           // Background image for question
@@ -504,6 +514,17 @@ public class GameManager : MonoBehaviour
         
         // Handle timer data from server
         HandleTimerFromServerData(data);
+        
+        // Notify host script of state change
+        if (hostScript != null)
+        {
+            Debug.Log($"GameManager calling hostScript.UpdateHostStateForGameState({newState})");
+            hostScript.UpdateHostStateForGameState(newState);
+        }
+        else
+        {
+            Debug.LogWarning("GameManager: hostScript is null! Please assign HostScript in inspector.");
+        }
         
         switch (newState)
         {
@@ -1420,8 +1441,8 @@ public class GameManager : MonoBehaviour
             // ✅ REMOVED: UpdatePlayerHealthFromRewards() - health is now synced in UpdateServerGameState
             // The server has already sent us the authoritative player health data
             
-            // Show damage animations for players who got it wrong
-            StartDamageAnimations();
+            // Show animations for all players - stars for correct, blood for incorrect
+            StartRewardAnimations();
         }
     }
     
@@ -1610,6 +1631,7 @@ public class GameManager : MonoBehaviour
         Vector3 startPosition = winnerDog.transform.position;
         Vector3 targetPosition = centerScreenPosition;
         
+        Debug.Log($"[EndGame] centerScreenPosition variable value: {centerScreenPosition}");
         Debug.Log($"[EndGame] Moving {winnerName}'s dog from {startPosition} to {targetPosition}");
         
         float elapsedTime = 0f;
@@ -1788,43 +1810,253 @@ public class GameManager : MonoBehaviour
     // ✅ REMOVED: UpdatePlayerHealthFromRewards() method
     // Health syncing is now handled by SyncAllPlayerData() called from UpdateServerGameState()
     
-    private void StartDamageAnimations()
+    private void StartRewardAnimations()
     {
         if (currentRewardData?.results == null) 
         {
-            Debug.LogWarning("[StartDamageAnimations] No results data available");
+            Debug.LogWarning("[StartRewardAnimations] No results data available");
             return;
         }
 
-        Debug.Log($"[StartDamageAnimations] Processing {currentRewardData.results.Length} player results");
+        Debug.Log($"[StartRewardAnimations] Processing {currentRewardData.results.Length} player results");
         
         foreach (var result in currentRewardData.results)
         {
-            Debug.Log($"[StartDamageAnimations] Player {result.playerId}: isCorrect={result.isCorrect}");
+            Debug.Log($"[StartRewardAnimations] Player {result.playerId}: isCorrect={result.isCorrect}");
             
-            if (!result.isCorrect)
+            // Use the playerName from the result if available, otherwise try to convert ID to name
+            string playerName = !string.IsNullOrEmpty(result.playerName) ? result.playerName : GetPlayerNameFromId(result.playerId);
+            if (string.IsNullOrEmpty(playerName))
             {
-                // Find the dog for this player and trigger damage animation
-                GameObject playerDog = GetDogForPlayer(result.playerId);
-                if (playerDog != null)
+                Debug.LogWarning($"[StartRewardAnimations] Could not find player name for ID: {result.playerId}");
+                continue;
+            }
+            
+            // Find the dog for this player using the player name
+            GameObject playerDog = GetDogForPlayer(playerName);
+            if (playerDog != null)
+            {
+                DogController dogController = playerDog.GetComponent<DogController>();
+                if (dogController != null)
                 {
-                    DogController dogController = playerDog.GetComponent<DogController>();
-                    if (dogController != null)
+                    if (result.isCorrect)
                     {
-                        Debug.Log($"[StartDamageAnimations] Triggering damage animation for {result.playerId}");
-                        dogController.TriggerDamageEffect();
+                        // Correct answer - show star effect
+                        Debug.Log($"[StartRewardAnimations] Triggering star effect for {playerName} (ID: {result.playerId})");
+                        StartCoroutine(SpawnStarEffectForDog(playerDog));
                     }
                     else
                     {
-                        Debug.LogWarning($"[StartDamageAnimations] No DogController found for {result.playerId}");
+                        // Incorrect answer - show blood/damage effect
+                        Debug.Log($"[StartRewardAnimations] Triggering blood effect for {playerName} (ID: {result.playerId})");
+                        dogController.TriggerDamageEffect();
+                        StartCoroutine(SpawnBloodEffectForDog(playerDog));
                     }
                 }
                 else
                 {
-                    Debug.LogWarning($"[StartDamageAnimations] No dog found for player {result.playerId}");
+                    Debug.LogWarning($"[StartRewardAnimations] No DogController found for {playerName}");
                 }
             }
+            else
+            {
+                Debug.LogWarning($"[StartRewardAnimations] No dog found for player {playerName} (ID: {result.playerId})");
+            }
         }
+    }
+    
+    private IEnumerator SpawnStarEffectForDog(GameObject dogObject)
+    {
+        if (dogObject == null) yield break;
+        
+        Vector3 dogPosition = dogObject.transform.position;
+        Vector3 effectPosition = dogPosition + effectOffset;
+        
+        if (starEffectPrefab != null)
+        {
+            // Instantiate your prepared star effect prefab
+            Debug.Log($"[SpawnStarEffectForDog] Spawning star effect at {effectPosition}");
+            GameObject starEffect = Instantiate(starEffectPrefab, effectPosition, Quaternion.identity);
+            
+            // Optionally destroy the effect after a certain duration
+            if (effectDuration > 0)
+            {
+                Destroy(starEffect, effectDuration);
+            }
+        }
+        else
+        {
+            Debug.LogWarning("[SpawnStarEffectForDog] Star effect prefab not assigned! Assign starEffectPrefab in the inspector.");
+            // Fallback: create a simple golden glow effect
+            yield return StartCoroutine(SimpleGoldenGlowEffect(dogObject));
+        }
+    }
+    
+    private IEnumerator SpawnBloodEffectForDog(GameObject dogObject)
+    {
+        if (dogObject == null) yield break;
+        
+        Vector3 dogPosition = dogObject.transform.position;
+        Vector3 effectPosition = dogPosition + effectOffset;
+        
+        if (bloodEffectPrefab != null)
+        {
+            // Instantiate your prepared blood effect prefab
+            Debug.Log($"[SpawnBloodEffectForDog] Spawning blood effect at {effectPosition}");
+            GameObject bloodEffect = Instantiate(bloodEffectPrefab, effectPosition, Quaternion.identity);
+            
+            // Optionally destroy the effect after a certain duration
+            if (effectDuration > 0)
+            {
+                Destroy(bloodEffect, effectDuration);
+            }
+        }
+        else
+        {
+            Debug.LogWarning("[SpawnBloodEffectForDog] Blood effect prefab not assigned! Assign bloodEffectPrefab in the inspector.");
+            // Fallback: create simple blood particle effect
+            yield return StartCoroutine(CreateSimpleBloodEffect(dogObject));
+        }
+    }
+    
+    private IEnumerator CreateSimpleBloodEffect(GameObject dogObject)
+    {
+        if (dogObject == null) yield break;
+        
+        Vector3 dogPosition = dogObject.transform.position;
+        
+        // Create blood particle effect
+        int numberOfParticles = 12;
+        
+        for (int i = 0; i < numberOfParticles; i++)
+        {
+            // Create a simple red particle
+            GameObject bloodParticle = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            bloodParticle.name = "BloodParticle";
+            
+            // Remove collider since we don't need physics
+            Collider collider = bloodParticle.GetComponent<Collider>();
+            if (collider != null) Destroy(collider);
+            
+            // Set position near the dog
+            Vector3 randomOffset = new Vector3(
+                UnityEngine.Random.Range(-0.5f, 0.5f),
+                UnityEngine.Random.Range(-0.5f, 0.5f),
+                0f
+            );
+            bloodParticle.transform.position = dogPosition + randomOffset;
+            bloodParticle.transform.localScale = Vector3.one * 0.1f;
+            
+            // Make it red
+            Renderer renderer = bloodParticle.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                renderer.material.color = new Color(0.8f, 0.1f, 0.1f, 1f); // Dark red
+            }
+            
+            // Animate the particle
+            StartCoroutine(AnimateBloodParticle(bloodParticle));
+            
+            // Small delay between particles
+            yield return new WaitForSeconds(0.02f);
+        }
+    }
+    
+    private IEnumerator AnimateBloodParticle(GameObject particle)
+    {
+        if (particle == null) yield break;
+        
+        Vector3 startPosition = particle.transform.position;
+        Vector3 velocity = new Vector3(
+            UnityEngine.Random.Range(-2f, 2f),
+            UnityEngine.Random.Range(1f, 3f),
+            0f
+        );
+        
+        float gravity = -5f;
+        float lifetime = 1.5f;
+        float elapsed = 0f;
+        
+        Renderer renderer = particle.GetComponent<Renderer>();
+        Color startColor = renderer.material.color;
+        
+        while (elapsed < lifetime && particle != null)
+        {
+            elapsed += Time.deltaTime;
+            
+            // Physics simulation
+            velocity.y += gravity * Time.deltaTime;
+            particle.transform.position += velocity * Time.deltaTime;
+            
+            // Fade out
+            float alpha = 1f - (elapsed / lifetime);
+            if (renderer != null)
+            {
+                renderer.material.color = new Color(startColor.r, startColor.g, startColor.b, alpha);
+            }
+            
+            yield return null;
+        }
+        
+        // Clean up
+        if (particle != null)
+        {
+            Destroy(particle);
+        }
+    }
+    
+    private IEnumerator SimpleGoldenGlowEffect(GameObject dogObject)
+    {
+        if (dogObject == null) yield break;
+        
+        // Find the dog's renderer components
+        SpriteRenderer[] renderers = dogObject.GetComponentsInChildren<SpriteRenderer>();
+        if (renderers.Length == 0) yield break;
+        
+        // Store original colors
+        Color[] originalColors = new Color[renderers.Length];
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            originalColors[i] = renderers[i].color;
+        }
+        
+        // Golden glow effect
+        Color goldenColor = new Color(1f, 0.8f, 0.2f, 1f); // Golden yellow
+        float duration = 2f;
+        float elapsed = 0f;
+        
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float intensity = Mathf.Sin((elapsed / duration) * Mathf.PI * 3f) * 0.5f + 0.5f;
+            
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                if (renderers[i] != null)
+                {
+                    renderers[i].color = Color.Lerp(originalColors[i], goldenColor, intensity * 0.6f);
+                }
+            }
+            
+            yield return null;
+        }
+        
+        // Restore original colors
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            if (renderers[i] != null)
+            {
+                renderers[i].color = originalColors[i];
+            }
+        }
+    }
+    
+    private string GetPlayerNameFromId(string playerId)
+    {
+        // For now, we'll use the playerName from the result instead
+        // This method is a fallback - we should use result.playerName directly
+        Debug.LogWarning($"[GetPlayerNameFromId] Using fallback method for ID: {playerId}");
+        return null;
     }
     
     public void UpdatePlayerSubmissionStatus(string playerName, bool submitted)

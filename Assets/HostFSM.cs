@@ -5,17 +5,23 @@ public class HostFSM : MonoBehaviour
     public enum HostState
     {
         Idle,
-        Pointing,
-        ShowingPrompt,
-        Attacking
+        Welcoming,      // For JOINING state - greeting players
+        Pointing,       // For TRIVIA state - pointing at questions
+        ShowingPrompt,  // For PROMPT state - presenting the prompt
+        Thinking,       // For GENERATING state - waiting/thinking pose
+        Attacking,      // For REWARD state - dramatic attack/spell casting
+        Celebrating     // For ENDGAME state - victory celebration
     }
 
     public HostState currentState = HostState.Idle;
 
     public Transform idlePosition;
+    public Transform welcomingPosition;
     public Transform pointingPosition;
     public Transform promptPosition;
+    public Transform thinkingPosition;
     public Transform attackingPosition;
+    public Transform celebratingPosition;
 
     public float moveSpeed = 5f;
 
@@ -57,14 +63,23 @@ public class HostFSM : MonoBehaviour
             case HostState.Idle:
                 targetPosition = idlePosition;
                 break;
+            case HostState.Welcoming:
+                targetPosition = welcomingPosition;
+                break;
             case HostState.Pointing:
                 targetPosition = pointingPosition;
                 break;
             case HostState.ShowingPrompt:
                 targetPosition = promptPosition;
                 break;
+            case HostState.Thinking:
+                targetPosition = thinkingPosition;
+                break;
             case HostState.Attacking:
                 targetPosition = attackingPosition;
+                break;
+            case HostState.Celebrating:
+                targetPosition = celebratingPosition;
                 break;
         }
 

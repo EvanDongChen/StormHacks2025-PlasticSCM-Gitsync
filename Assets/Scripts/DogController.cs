@@ -100,30 +100,16 @@ public class DogController : MonoBehaviour
             }
             else
             {
-                Debug.LogWarning("Name GameObject found but no TextMeshPro component attached!");
+                Debug.LogWarning($"Name GameObject found but no TextMeshPro component attached on {playerData.playerName}'s dog!");
             }
         }
         else
         {
-            // Create name label if Name GameObject doesn't exist
-            CreateNameLabel();
+            Debug.LogWarning($"No Name child object found on {playerData.playerName}'s dog! Make sure the dog prefab has a 'Name' child GameObject with TextMeshPro component.");
         }
         
         // Setup health hearts instead of health bar
         SetupHealthHearts();
-    }
-    
-    void CreateNameLabel()
-    {
-        GameObject labelObj = new GameObject("NameLabel");
-        labelObj.transform.SetParent(transform);
-        labelObj.transform.localPosition = new Vector3(0, 2, 0);
-        
-        nameLabel = labelObj.AddComponent<TextMeshPro>();
-        nameLabel.text = playerData.playerName;
-        nameLabel.fontSize = 2;
-        nameLabel.alignment = TextAlignmentOptions.Center;
-        nameLabel.color = Color.white;
     }
     
     void CreateHealthLabel()
