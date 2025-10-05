@@ -23,6 +23,7 @@ public class TriviaData
     public string[] options = new string[4]; // A, B, C, D
     public int correctAnswerIndex;
     public PlayerData[] players; // Player data that comes with trivia state
+    public float timer; // Round timer in seconds from server
 }
 
 [System.Serializable]
@@ -31,6 +32,7 @@ public class RewardData
     public PlayerResult[] results;
     public int solutionIndex;
     public PlayerData[] players;
+    public float timer; // Reward phase timer in seconds from server
 }
 
 [System.Serializable]
@@ -46,6 +48,13 @@ public class EndGameData
 {
     public string[] winners;
     public PlayerData[] players; // Player data that comes with endgame state
+}
+
+[System.Serializable]
+public class GameStateData
+{
+    public float timer; // General timer for game states like PROMPT
+    public PlayerData[] players; // Player data for general state updates
 }
 
 [System.Serializable]
@@ -88,6 +97,7 @@ public class GameManager : MonoBehaviour
     [Header("Game UI")]
     public TextMeshProUGUI lobbyCodeDisplay;
     public TextMeshProUGUI phaseDisplay;
+    public TextMeshProUGUI roundTimerDisplay;      // Timer display for current round
     
     [Header("Trivia UI")]
     public GameObject promptWaitingPanel;          // "Players are choosing a category..."
@@ -147,6 +157,12 @@ public class GameManager : MonoBehaviour
     public Transform dogContainer;            // Parent object for organization
     public Vector3[] dogPositions;           // Predefined positions for dogs
     public List<GameObject> activeDogs = new List<GameObject>();
+    
+    [Header("Timer System")]
+    public GameStateData currentGameStateData; // General game state data with timer
+    private float currentTimerSeconds = 0f;    // Current timer value in seconds
+    private bool isTimerActive = false;        // Whether the timer is currently counting down
+    private Coroutine timerCoroutine;          // Reference to active timer coroutine
     
     private List<string> lastPlayerList = new List<string>();
     
@@ -468,15 +484,30 @@ public class GameManager : MonoBehaviour
         // Update UI buttons when server state changes
         UpdatePhaseUI();
         
+        // Handle timer data from server
+        HandleTimerFromServerData(data);
+        
         switch (newState)
         {
             case ServerGameState.PROMPT:
                 Debug.Log("Showing prompt waiting UI");
+                if (data is GameStateData gameStateData)
+                {
+                    currentGameStateData = gameStateData;
+                    
+                    // Sync player data if available
+                    if (gameStateData.players != null)
+                    {
+                        SyncPlayerDataFromServer(gameStateData.players);
+                    }
+                }
                 ShowPromptWaitingUI();
                 break;
             case ServerGameState.GENERATING:
                 Debug.Log("Showing loading UI");
                 ShowLoadingUI();
+                // Stop timer during generation phase
+                StopTimer();
                 break;
             case ServerGameState.TRIVIA:
                 Debug.Log("Received trivia data, showing trivia UI");
@@ -1947,5 +1978,116 @@ public class GameManager : MonoBehaviour
         }
         
         Debug.Log("=== END PHASE TRANSITION CHECK ===");
+    }
+    
+    // --- Timer System Methods ---
+    
+    public void StartTimer(float seconds)
+    {
+        if (timerCoroutine != null)
+        {
+            StopCoroutine(timerCoroutine);
+        }
+        
+        currentTimerSeconds = seconds;
+        isTimerActive = true;
+        timerCoroutine = StartCoroutine(TimerCountdown());
+        UpdateTimerDisplay();
+        
+        Debug.Log($"Timer started: {seconds} seconds");
+    }
+    
+    public void StopTimer()
+    {
+        if (timerCoroutine != null)
+        {
+            StopCoroutine(timerCoroutine);
+            timerCoroutine = null;
+        }
+        
+        isTimerActive = false;
+        currentTimerSeconds = 0f;
+        UpdateTimerDisplay();
+        
+        Debug.Log("Timer stopped");
+    }
+    
+    private IEnumerator TimerCountdown()
+    {
+        while (currentTimerSeconds > 0f && isTimerActive)
+        {
+            yield return new WaitForSeconds(1f);
+            currentTimerSeconds -= 1f;
+            UpdateTimerDisplay();
+        }
+        
+        if (isTimerActive)
+        {
+            // Timer reached zero
+            isTimerActive = false;
+            currentTimerSeconds = 0f;
+            UpdateTimerDisplay();
+            Debug.Log("Timer reached zero");
+        }
+    }
+    
+    private void UpdateTimerDisplay()
+    {
+        if (roundTimerDisplay != null)
+        {
+            if (isTimerActive && currentTimerSeconds > 0f)
+            {
+                int minutes = Mathf.FloorToInt(currentTimerSeconds / 60f);
+                int seconds = Mathf.FloorToInt(currentTimerSeconds % 60f);
+                roundTimerDisplay.text = $"{minutes:00}:{seconds:00}";
+                
+                // Change color based on remaining time
+                if (currentTimerSeconds <= 10f)
+                {
+                    roundTimerDisplay.color = Color.red; // Urgent - red
+                }
+                else if (currentTimerSeconds <= 30f)
+                {
+                    roundTimerDisplay.color = Color.yellow; // Warning - yellow
+                }
+                else
+                {
+                    roundTimerDisplay.color = Color.white; // Normal - white
+                }
+            }
+            else
+            {
+                roundTimerDisplay.text = "--:--";
+                roundTimerDisplay.color = Color.white;
+            }
+        }
+    }
+    
+    // Update server state handling to start timers
+    private void HandleTimerFromServerData(object data)
+    {
+        float timerValue = 0f;
+        
+        if (data is TriviaData triviaData && triviaData.timer > 0f)
+        {
+            timerValue = triviaData.timer;
+        }
+        else if (data is RewardData rewardData && rewardData.timer > 0f)
+        {
+            timerValue = rewardData.timer;
+        }
+        else if (data is GameStateData gameStateData && gameStateData.timer > 0f)
+        {
+            timerValue = gameStateData.timer;
+        }
+        
+        if (timerValue > 0f)
+        {
+            StartTimer(timerValue);
+        }
+        else
+        {
+            StopTimer();
+        }
     }
 }

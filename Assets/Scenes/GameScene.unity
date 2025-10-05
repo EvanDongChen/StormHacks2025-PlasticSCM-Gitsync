@@ -304,7 +304,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 16.6, y: 12.8}
+  m_AnchoredPosition: {x: 9.6, y: -6.8}
   m_SizeDelta: {x: 72.6841, y: 54.9641}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &62706478
@@ -327,7 +327,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 67
+  m_text: 00:00
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 2bb827dcbc04b604cbe6ec408c29f187, type: 2}
   m_sharedMaterial: {fileID: -8817915235993129429, guid: 2bb827dcbc04b604cbe6ec408c29f187, type: 2}
@@ -354,8 +354,8 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 46.8
-  m_fontSizeBase: 46.8
+  m_fontSize: 22
+  m_fontSizeBase: 22
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
@@ -392,7 +392,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: 0, y: 0, z: -1.2410889, w: -15.306335}
+  m_margin: {x: 0, y: 0, z: 7.2993164, w: 19.922699}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   m_hasFontAssetChanged: 0
@@ -1637,15 +1637,18 @@ MonoBehaviour:
     - 
     correctAnswerIndex: 0
     players: []
+    timer: 0
   currentRewardData:
     results: []
     solutionIndex: 0
     players: []
+    timer: 0
   currentEndGameData:
     winners: []
     players: []
   lobbyCodeDisplay: {fileID: 188392897}
   phaseDisplay: {fileID: 148791160}
+  roundTimerDisplay: {fileID: 62706478}
   promptWaitingPanel: {fileID: 0}
   questionText: {fileID: 1153312500}
   answerAText: {fileID: 1417223545}
@@ -1684,6 +1687,9 @@ MonoBehaviour:
   - {x: -0.7, y: -4.68, z: 0}
   - {x: 4.22, y: -4.68, z: 0}
   activeDogs: []
+  currentGameStateData:
+    timer: 0
+    players: []
 --- !u!4 &772222247
 Transform:
   m_ObjectHideFlags: 0
