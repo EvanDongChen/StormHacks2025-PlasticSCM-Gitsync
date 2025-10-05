@@ -156,8 +156,69 @@ public class NetworkScript : MonoBehaviour
 
         socket.On("gameStateChange", response =>
         {
-            var data = response.GetValue();
-            Debug.Log($"GameState changed: {data.ToString()}");
+            try
+            {
+                var data = response.GetValue();
+                string jsonString = data.ToString();
+                Debug.Log($"GameState changed: {jsonString}");
+                
+                // Parse the game state change and forward to GameManager
+                var gameStateData = ParseGameStateChange(jsonString);
+                if (gameStateData != null)
+                {
+                    Debug.Log($"Parsed game state: {gameStateData.state}");
+                    // Queue the game state update for main thread
+                    mainThreadQueue.Enqueue(() => {
+                        if (GameManager.Instance != null)
+                        {
+                            Debug.Log($"Forwarding game state to GameManager: {gameStateData.state}");
+                            GameManager.Instance.UpdateServerGameState(gameStateData.state, gameStateData.data);
+                        }
+                        else
+                        {
+                            Debug.LogError("GameManager.Instance is null when trying to update game state!");
+                        }
+                    });
+                }
+                else
+                {
+                    Debug.LogError("Failed to parse game state change data");
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"Error handling gameStateChange event: {e.Message}");
+            }
+        });
+
+        socket.On("playerSubmittedUpdate", response =>
+        {
+            try
+            {
+                var data = response.GetValue();
+                string jsonString = data.ToString();
+                Debug.Log($"Player submitted update: {jsonString}");
+                
+                // Parse player submission updates and forward to GameManager
+                var players = ExtractPlayerSubmissionData(jsonString);
+                if (players != null && players.Count > 0)
+                {
+                    // Queue the player update for main thread
+                    mainThreadQueue.Enqueue(() => {
+                        if (GameManager.Instance != null)
+                        {
+                            foreach (var player in players)
+                            {
+                                GameManager.Instance.UpdatePlayerSubmissionStatus(player.playerName, player.submitted);
+                            }
+                        }
+                    });
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"Error handling playerSubmittedUpdate event: {e.Message}");
+            }
         });
 
         // --- Tell the socket to start connecting ---
@@ -168,6 +229,13 @@ public class NetworkScript : MonoBehaviour
 
     void Update()
     {
+        // Process main thread queue
+        while (mainThreadQueue.Count > 0)
+        {
+            var action = mainThreadQueue.Dequeue();
+            action?.Invoke();
+        }
+        
         // Handle UI updates on main thread
         if (shouldUpdateLobbyDisplay)
         {
@@ -369,5 +437,369 @@ public class NetworkScript : MonoBehaviour
         }
         
         return playerNames;
+    }
+
+    // Data structure for parsed game state changes
+    private class GameStateChangeData
+    {
+        public ServerGameState state;
+        public object data;
+    }
+
+    // Simple player data structure for network updates
+    private class SimplePlayerData
+    {
+        public string playerName;
+        public bool submitted;
+        public int health;
+    }
+
+    private GameStateChangeData ParseGameStateChange(string jsonResponse)
+    {
+        try
+        {
+            var result = new GameStateChangeData();
+            
+            // Extract state
+            if (jsonResponse.Contains("\"state\":"))
+            {
+                int stateStart = jsonResponse.IndexOf("\"state\":\"") + 9;
+                int stateEnd = jsonResponse.IndexOf("\"", stateStart);
+                if (stateStart > 8 && stateEnd > stateStart)
+                {
+                    string stateString = jsonResponse.Substring(stateStart, stateEnd - stateStart);
+                    
+                    // Convert to ServerGameState enum
+                    if (System.Enum.TryParse<ServerGameState>(stateString, true, out ServerGameState gameState))
+                    {
+                        result.state = gameState;
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"Unknown game state: {stateString}");
+                        return null;
+                    }
+                }
+            }
+            
+            // Parse additional data based on state
+            switch (result.state)
+            {
+                case ServerGameState.TRIVIA:
+                    result.data = ParseTriviaData(jsonResponse);
+                    break;
+                case ServerGameState.REWARD:
+                    result.data = ParseRewardData(jsonResponse);
+                    break;
+                case ServerGameState.ENDGAME:
+                    result.data = ParseEndGameData(jsonResponse);
+                    break;
+            }
+            
+            return result;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error parsing game state change: {e.Message}");
+            return null;
+        }
+    }
+
+    private TriviaData ParseTriviaData(string jsonResponse)
+    {
+        var triviaData = new TriviaData();
+        
+        try
+        {
+            // Check for new server format: "data": ["question", "optionA", "optionB", "optionC", "optionD", "correctAnswer"]
+            if (jsonResponse.Contains("\"data\":"))
+            {
+                var dataArray = ExtractDataArray(jsonResponse);
+                if (dataArray != null && dataArray.Length >= 5)
+                {
+                    triviaData.question = dataArray[0];
+                    triviaData.options = new string[4];
+                    triviaData.options[0] = dataArray[1]; // Option A
+                    triviaData.options[1] = dataArray[2]; // Option B  
+                    triviaData.options[2] = dataArray[3]; // Option C
+                    triviaData.options[3] = dataArray[4]; // Option D
+                    
+                    // Find correct answer index (optional - for client-side validation)
+                    if (dataArray.Length >= 6)
+                    {
+                        string correctAnswer = dataArray[5];
+                        for (int i = 0; i < 4; i++)
+                        {
+                            if (triviaData.options[i] == correctAnswer)
+                            {
+                                triviaData.correctAnswerIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    Debug.Log($"Parsed trivia: Q='{triviaData.question}' A='{triviaData.options[0]}' B='{triviaData.options[1]}' C='{triviaData.options[2]}' D='{triviaData.options[3]}'");
+                    return triviaData;
+                }
+            }
+            
+            // Fallback: Check for old format with separate question and options fields
+            if (jsonResponse.Contains("\"question\":"))
+            {
+                int questionStart = jsonResponse.IndexOf("\"question\":\"") + 12;
+                int questionEnd = jsonResponse.IndexOf("\"", questionStart);
+                if (questionStart > 11 && questionEnd > questionStart)
+                {
+                    triviaData.question = jsonResponse.Substring(questionStart, questionEnd - questionStart);
+                }
+            }
+            
+            if (jsonResponse.Contains("\"options\":"))
+            {
+                triviaData.options = ExtractOptionsArray(jsonResponse);
+            }
+            
+            return triviaData;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error parsing trivia data: {e.Message}");
+            return null;
+        }
+    }
+
+    private string[] ExtractOptionsArray(string jsonResponse)
+    {
+        var options = new string[4];
+        try
+        {
+            // Simple parsing for options array - looking for pattern like ["A","B","C","D"]
+            int optionsStart = jsonResponse.IndexOf("\"options\":");
+            if (optionsStart != -1)
+            {
+                int arrayStart = jsonResponse.IndexOf("[", optionsStart);
+                int arrayEnd = jsonResponse.IndexOf("]", arrayStart);
+                
+                if (arrayStart != -1 && arrayEnd != -1)
+                {
+                    string optionsSection = jsonResponse.Substring(arrayStart + 1, arrayEnd - arrayStart - 1);
+                    
+                    // Split by comma and clean up quotes
+                    string[] parts = optionsSection.Split(',');
+                    for (int i = 0; i < parts.Length && i < 4; i++)
+                    {
+                        string option = parts[i].Trim().Trim('"');
+                        options[i] = option;
+                    }
+                }
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error extracting options array: {e.Message}");
+        }
+        
+        return options;
+    }
+
+    private string[] ExtractDataArray(string jsonResponse)
+    {
+        try
+        {
+            // Look for "data": [...] pattern
+            int dataStart = jsonResponse.IndexOf("\"data\":");
+            if (dataStart != -1)
+            {
+                int arrayStart = jsonResponse.IndexOf("[", dataStart);
+                int arrayEnd = jsonResponse.IndexOf("]", arrayStart);
+                
+                if (arrayStart != -1 && arrayEnd != -1)
+                {
+                    string dataSection = jsonResponse.Substring(arrayStart + 1, arrayEnd - arrayStart - 1);
+                    
+                    // Split by comma and clean up quotes
+                    string[] parts = dataSection.Split(',');
+                    string[] cleanedParts = new string[parts.Length];
+                    
+                    for (int i = 0; i < parts.Length; i++)
+                    {
+                        string part = parts[i].Trim().Trim('"');
+                        cleanedParts[i] = part;
+                    }
+                    
+                    Debug.Log($"Extracted data array: [{string.Join(", ", cleanedParts)}]");
+                    return cleanedParts;
+                }
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error extracting data array: {e.Message}");
+        }
+        
+        return null;
+    }
+
+    private RewardData ParseRewardData(string jsonResponse)
+    {
+        var rewardData = new RewardData();
+        
+        try
+        {
+            // Extract solutionIndex
+            if (jsonResponse.Contains("\"solutionIndex\":"))
+            {
+                int solutionStart = jsonResponse.IndexOf("\"solutionIndex\":") + 16;
+                int solutionEnd = jsonResponse.IndexOfAny(new char[] { ',', '}' }, solutionStart);
+                if (solutionStart > 15 && solutionEnd > solutionStart)
+                {
+                    string solutionStr = jsonResponse.Substring(solutionStart, solutionEnd - solutionStart);
+                    if (int.TryParse(solutionStr, out int solutionIndex))
+                    {
+                        rewardData.solutionIndex = solutionIndex;
+                    }
+                }
+            }
+            
+            // For now, we'll update player health in GameManager based on the results
+            // More complex parsing can be added here as needed
+            
+            return rewardData;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error parsing reward data: {e.Message}");
+            return null;
+        }
+    }
+
+    private EndGameData ParseEndGameData(string jsonResponse)
+    {
+        var endGameData = new EndGameData();
+        
+        try
+        {
+            // Extract winner information
+            if (jsonResponse.Contains("\"winner\":"))
+            {
+                int winnerStart = jsonResponse.IndexOf("\"winner\":\"") + 10;
+                int winnerEnd = jsonResponse.IndexOf("\"", winnerStart);
+                if (winnerStart > 9 && winnerEnd > winnerStart)
+                {
+                    string winner = jsonResponse.Substring(winnerStart, winnerEnd - winnerStart);
+                    endGameData.winners = new string[] { winner };
+                }
+            }
+            
+            return endGameData;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error parsing end game data: {e.Message}");
+            return null;
+        }
+    }
+
+    private List<SimplePlayerData> ExtractPlayerSubmissionData(string jsonResponse)
+    {
+        var players = new List<SimplePlayerData>();
+        
+        try
+        {
+            // Look for players array in the JSON
+            if (jsonResponse.Contains("\"players\":"))
+            {
+                int playersStart = jsonResponse.IndexOf("\"players\":");
+                if (playersStart != -1)
+                {
+                    int arrayStart = jsonResponse.IndexOf("[", playersStart);
+                    int arrayEnd = jsonResponse.IndexOf("]", arrayStart);
+                    
+                    if (arrayStart != -1 && arrayEnd != -1)
+                    {
+                        string playersSection = jsonResponse.Substring(arrayStart + 1, arrayEnd - arrayStart - 1);
+                        
+                        // Parse player objects
+                        string[] playerObjects = playersSection.Split(new string[] { "},{" }, StringSplitOptions.RemoveEmptyEntries);
+                        
+                        foreach (string playerObj in playerObjects)
+                        {
+                            var player = ParsePlayerFromJson(playerObj);
+                            if (player != null)
+                            {
+                                players.Add(player);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error extracting player submission data: {e.Message}");
+        }
+        
+        return players;
+    }
+
+    private SimplePlayerData ParsePlayerFromJson(string playerJson)
+    {
+        try
+        {
+            string playerName = "";
+            bool submitted = false;
+            int health = 4;
+            
+            // Extract name
+            if (playerJson.Contains("\"name\":"))
+            {
+                int nameStart = playerJson.IndexOf("\"name\":\"") + 8;
+                int nameEnd = playerJson.IndexOf("\"", nameStart);
+                if (nameStart > 7 && nameEnd > nameStart)
+                {
+                    playerName = playerJson.Substring(nameStart, nameEnd - nameStart);
+                }
+            }
+            
+            // Extract submitted status
+            if (playerJson.Contains("\"submitted\":"))
+            {
+                int submittedStart = playerJson.IndexOf("\"submitted\":") + 12;
+                int submittedEnd = playerJson.IndexOfAny(new char[] { ',', '}' }, submittedStart);
+                if (submittedStart > 11 && submittedEnd > submittedStart)
+                {
+                    string submittedStr = playerJson.Substring(submittedStart, submittedEnd - submittedStart);
+                    bool.TryParse(submittedStr, out submitted);
+                }
+            }
+            
+            // Extract health
+            if (playerJson.Contains("\"health\":"))
+            {
+                int healthStart = playerJson.IndexOf("\"health\":") + 9;
+                int healthEnd = playerJson.IndexOfAny(new char[] { ',', '}' }, healthStart);
+                if (healthStart > 8 && healthEnd > healthStart)
+                {
+                    string healthStr = playerJson.Substring(healthStart, healthEnd - healthStart);
+                    int.TryParse(healthStr, out health);
+                }
+            }
+            
+            if (!string.IsNullOrEmpty(playerName))
+            {
+                return new SimplePlayerData
+                {
+                    playerName = playerName,
+                    submitted = submitted,
+                    health = health
+                };
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error parsing player from JSON: {e.Message}");
+        }
+        
+        return null;
     }
 }
